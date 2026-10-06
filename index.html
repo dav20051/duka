@@ -52,7 +52,7 @@ const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'
 
 function authView(){app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
 <input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)">
-<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button></main>`}
+<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p></main>`}
 async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;
  const r=m=='in'?await sb.auth.signInWithPassword({email:e,password:p}):await sb.auth.signUp({email:e,password:p});
  if(r.error)return alert(r.error.message);
@@ -69,23 +69,25 @@ async function logout(){await sb.auth.signOut();S.shop=null;authView()}
 async function boot(){
  const {data:{session}}=await sb.auth.getSession();
  if(!session)return authView();
- S.uid=session.user.id;
- const {data}=await sb.from('shop_members').select('shops(id,name,paid_until,type)').limit(1);
+ if(S.rec)return recoverView();S.uid=session.user.id;
+ try{await sb.rpc('claim_invites')}catch(e){}
+ const {data}=await sb.from('shop_members').select('role,shops(id,name,paid_until,type)').eq('user_id',S.uid).limit(1);
  if(!data||!data.length)return setupView();
- S.shop=data[0].shops;
+ S.shop=data[0].shops;S.role=data[0].role;
  if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
  await load();render()}
 async function load(){
- const [p,c,d,sl]=await Promise.all([
+ const [p,c,d,sl,si]=await Promise.all([
   sb.from('products').select('*').eq('active',true).order('name'),
   sb.from('customer_balances').select('*').order('name'),
   sb.from('daily_summary').select('*').order('day',{ascending:false}).limit(7),
-  sb.from('sales').select('created_at,total,paid,method,sale_items(name,qty,unit_price,unit_cost)').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).order('created_at',{ascending:false}).limit(300)]);
- S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[]}
+  sb.from('sales').select('id,created_at,total,paid,method,voided,sale_items(name,qty,unit_price,unit_cost)').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).order('created_at',{ascending:false}).limit(300),
+  sb.from('staff_invites').select('*').order('created_at')]);
+ S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[];S.invites=si.data||[]}
 
 const TABS={sell:'Sell',stock:'Stock',debts:'Debts',today:'Today'};
 function go(t){S.tab=t;render()}
-function render(){app.innerHTML=`<main>${VIEWS[S.tab]()}</main><nav>${Object.keys(TABS).map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]}</button>`).join('')}</nav>`}
+function render(){app.innerHTML=`<main>${VIEWS[S.tab]()}</main><nav>${Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]}</button>`).join('')}</nav>`}
 const VIEWS={
  sell:()=>`<input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
  stock:()=>`<h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?'<input id="sk" placeholder="SKU / barcode (optional)">':''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
@@ -96,16 +98,16 @@ const VIEWS={
   ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank"><button class="s">Remind</button></a>`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
  today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
   <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
-  <div class="card">New debt<b>${kes(t.new_debt)}</b></div><div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div><div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div><div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div></div>${payMix()}${chart()}${topSellers()}${recent()}
+  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${S.role=='staff'?'':`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${S.role=='staff'?'':`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`}</div>${payMix()}${S.role=='staff'?'':chart()+topSellers()}${recent()}
   <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
   ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}
-  <p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
+  ${staffView()}<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
 
 function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
  `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
 const total=()=>Object.entries(S.cart).reduce((a,[id,q])=>a+q*price(S.products.find(p=>p.id==id)),0);
 function cartView(){const e=Object.entries(S.cart);if(!e.length)return'';
- return`<h3>Cart</h3>${e.map(([id,q])=>{const p=S.products.find(x=>x.id==id);return`<div class="row"><div>${pn(p)} × ${q} ${esc(p.unit)}<small>${kes(q*price(p))}</small></div><div><button class="s" onclick="setQty('${id}')">Qty</button> <button class="s" onclick="setPrice('${id}')">Price</button> <button class="s" onclick="dec('${id}')">−</button></div></div>`}).join('')}
+ return`<h3>Cart</h3>${e.map(([id,q])=>{const p=S.products.find(x=>x.id==id);return`<div class="row"><div>${pn(p)} × ${q} ${esc(p.unit)}<small>${kes(q*price(p))}${q>p.stock_qty?` · <span class="low">only ${p.stock_qty} in stock</span>`:''}</small></div><div><button class="s" onclick="setQty('${id}')">Qty</button> ${S.role=='staff'?'':`<button class="s" onclick="setPrice('${id}')">Price</button>`} <button class="s" onclick="dec('${id}')">−</button></div></div>`}).join('')}
  <div class="m">${['cash','mpesa','debt'].map(m=>`<button class="${S.method==m?'on':''}" onclick="S.method='${m}';$('#cart').innerHTML=cartView()">${m=='mpesa'?'M-Pesa':m[0].toUpperCase()+m.slice(1)}</button>`).join('')}</div>
  ${S.method=='debt'?`<select onchange="S.cust=this.value"><option value="">Choose customer</option>${S.customers.map(c=>`<option value="${c.customer_id}" ${S.cust==c.customer_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:''}
  <button class="p" style="width:100%" onclick="checkout()">Sell · ${kes(total())}</button>`}
@@ -113,6 +115,7 @@ function add(id){S.cart[id]=(S.cart[id]||0)+1;$('#cart').innerHTML=cartView()}
 function dec(id){if(--S.cart[id]<=0)delete S.cart[id];$('#cart').innerHTML=cartView()}
 async function checkout(){
  const items=Object.entries(S.cart).map(([id,q])=>({p:S.products.find(x=>x.id==id),q}));
+ const over=items.filter(({p,q})=>q>p.stock_qty);if(over.length&&!confirm('Not enough stock: '+over.map(({p})=>p.name+' ('+p.stock_qty+' left)').join(', ')+'. Sell anyway?'))return;
  const t=total();let paid=t,code=null;
  if(S.method=='debt'){if(!S.cust)return alert('Choose a customer');
   const a=prompt('Amount paid now (0 if none)','0');if(a===null)return;paid=Math.min(t,Math.max(0,+a||0))}
@@ -194,14 +197,14 @@ const stockVal=()=>S.products.reduce((a,p)=>a+p.stock_qty*p.buy_price,0);
 const hm=t=>new Date(t).toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Nairobi'});
 function chart(){const d=[...S.days].reverse(),m=Math.max(1,...d.map(x=>+x.sales_total));
  return d.length?`<h3>Last 7 days</h3><div class="bars">${d.map(x=>`<div class="bar"><i style="height:${Math.max(4,Math.round(x.sales_total/m*80))}px"></i><small>${x.day.slice(8)}</small></div>`).join('')}</div><p class="lb">Week: sales ${kes(d.reduce((a,x)=>a+ +x.sales_total,0))} · profit ${kes(d.reduce((a,x)=>a+ +x.profit_estimate,0))}</p>`:''}
-function topSellers(){const m={};S.sales.forEach(s=>(s.sale_items||[]).forEach(i=>{m[i.name]=m[i.name]||{q:0,r:0};m[i.name].q+=+i.qty;m[i.name].r+=i.qty*i.unit_price}));
+function topSellers(){const m={};S.sales.filter(s=>!s.voided).forEach(s=>(s.sale_items||[]).forEach(i=>{m[i.name]=m[i.name]||{q:0,r:0};m[i.name].q+=+i.qty;m[i.name].r+=i.qty*i.unit_price}));
  const t=Object.entries(m).sort((a,b)=>b[1].r-a[1].r).slice(0,5);
  return t.length?`<h3>Top sellers (7 days)</h3>${t.map(([n,v],i)=>`<div class="row"><div>${i+1}. ${esc(n)}<small>${v.q} sold</small></div><b>${kes(v.r)}</b></div>`).join('')}`:''}
 function payMix(){const td=today(),x={cash:0,mpesa:0,debt:0};
- S.sales.filter(s=>new Date(s.created_at).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})==td).forEach(s=>{if(s.method in x)x[s.method]+= +s.total});
+ S.sales.filter(s=>!s.voided&&new Date(s.created_at).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})==td).forEach(s=>{if(s.method in x)x[s.method]+= +s.total});
  const T=x.cash+x.mpesa+x.debt;if(!T)return'';const pc=k=>Math.round(x[k]/T*100);
  return`<h3>Today by payment</h3><div class="mix"><i style="width:${pc('cash')}%;background:var(--accent)"></i><i style="width:${pc('mpesa')}%;background:#8fb996"></i><i style="width:${pc('debt')}%;background:var(--rose)"></i></div><p class="lb">Cash ${kes(x.cash)} · M-Pesa ${kes(x.mpesa)} · Debt ${kes(x.debt)}</p>`}
-function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,5).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}</small></div><b>${kes(s.total)}</b></div>`).join('')}`:''}
+function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,8).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}${s.voided?' · VOIDED':''}</small></div><div><b>${s.voided?'<s>'+kes(s.total)+'</s>':kes(s.total)}</b>${s.voided?'':` <button class="s" onclick="voidSale('${s.id}')">Void</button>`}</div></div>`).join('')}`:''}
 
 function editProduct(id){
  const p=S.products.find(x=>x.id==id),c=cfg();
@@ -237,6 +240,26 @@ async function saveEdit(id){
 async function removeProduct(id){if(!confirm('Remove this product from your list? Past sales are kept.'))return;
  const {error}=await sb.from('products').update({active:false,sku:null}).eq('id',id);
  if(error)return alert(error.message);closeEdit();await load();render()}
+
+S.invites=[];
+function staffView(){if(S.role!='owner')return'';
+ return`<h3>Staff</h3><input id="se" type="email" placeholder="Staff email"><button class="p" onclick="invite()">Add staff</button>
+ ${S.invites.map(i=>`<div class="row"><div>${esc(i.email)}<small>${i.user_id?'Active':'Waiting for them to sign up'}</small></div><button class="s" onclick="rmStaff('${i.id}')">Remove</button></div>`).join('')}
+ <p class="lb">Staff create their own account with this email, then log in. They can sell and record debts, but cannot see profit or change products.</p>`}
+async function invite(){const e=$('#se').value.trim().toLowerCase();if(!/^\S+@\S+\.\S+$/.test(e))return alert('Enter a valid email');
+ const {error}=await sb.from('staff_invites').insert({shop_id:S.shop.id,email:e});if(error)return alert(error.message);await load();render()}
+async function rmStaff(id){if(!confirm('Remove this staff member?'))return;
+ const {error}=await sb.rpc('remove_staff',{p_invite:id});if(error)return alert(error.message);await load();render()}
+async function voidSale(id){if(!confirm('Void this sale? Stock is put back and any debt from it is cancelled.'))return;
+ const {error}=await sb.rpc('void_sale',{p_sale:id});if(error)return alert(error.message);await load();render()}
+async function forgot(){const e=$('#em').value.trim();if(!e)return alert('Type your email first, then tap Forgot password');
+ const {error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
+ alert(error?error.message:'If that email has an account, a reset link is on its way. Check your inbox and spam.')}
+function recoverView(){app.innerHTML=`<main class="c"><h1>New password</h1><input id="np" type="password" placeholder="New password (6+ characters)"><button class="p" onclick="setPw()">Save password</button></main>`}
+async function setPw(){const v=$('#np').value;if(v.length<6)return alert('Use 6+ characters');
+ const {error}=await sb.auth.updateUser({password:v});if(error)return alert(error.message);
+ S.rec=false;alert('Password updated');history.replaceState(null,'',location.pathname);boot()}
+sb.auth.onAuthStateChange(ev=>{if(ev=='PASSWORD_RECOVERY'){S.rec=true;recoverView()}});
 
 boot();
 </script></body></html>

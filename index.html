@@ -30,7 +30,7 @@ nav{background:var(--card);border-top:1px solid var(--line)}
 nav button{color:var(--mut);background:transparent}nav button.on{background:var(--accent);color:var(--on)}
 h1,a{color:var(--accent)}
 .hero small{color:var(--mut)}.hero h2{margin:2px 0 14px;font-size:24px}
-.bars{display:flex;gap:6px;align-items:flex-end;height:120px;background:var(--card);border-radius:14px;padding:12px 10px 6px}
+.bars{display:flex;gap:6px;align-items:flex-end;height:130px;background:var(--card);border-radius:14px;padding:12px 10px 6px}
 .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
 .bar i{display:block;width:100%;background:var(--accent);border-radius:6px 6px 0 0;opacity:.9}
 .bar small{font-size:11px;color:var(--mut)}
@@ -98,7 +98,7 @@ const VIEWS={
   ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank"><button class="s">Remind</button></a>`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
  today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
   <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
-  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${S.role=='staff'?'':`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${S.role=='staff'?'':`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`}</div>${payMix()}${S.role=='staff'?'':chart()+topSellers()}${recent()}
+  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${S.role=='staff'?'':`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${S.role=='staff'?'':`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${S.role=='staff'?'':chart7()+topSellers()}${recent()}
   <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
   ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}
   ${staffView()}<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
@@ -260,6 +260,26 @@ async function setPw(){const v=$('#np').value;if(v.length<6)return alert('Use 6+
  const {error}=await sb.auth.updateUser({password:v});if(error)return alert(error.message);
  S.rec=false;alert('Password updated');history.replaceState(null,'',location.pathname);boot()}
 sb.auth.onAuthStateChange(ev=>{if(ev=='PASSWORD_RECOVERY'){S.rec=true;recoverView()}});
+
+function chart7(){const days=[];for(let i=6;i>=0;i--)days.push(soon(-i));
+ const m0={};S.days.forEach(d=>m0[d.day]=d);
+ const v=days.map(d=>+(m0[d]&&m0[d].sales_total)||0),mx=Math.max(1,...v);
+ const wd=d=>new Date(d+'T12:00:00').toLocaleDateString('en-KE',{weekday:'short'});
+ const lab=n=>n?(n>=1000?(n/1000).toFixed(1)+'k':Math.round(n)):'';
+ return`<h3>Last 7 days</h3><div class="bars">${days.map((d,i)=>`<div class="bar"><small>${lab(v[i])}</small><i style="height:${Math.max(3,Math.round(v[i]/mx*56))}px;${d==today()?'':'opacity:.6'}"></i><small>${wd(d)}</small></div>`).join('')}</div><p class="lb">Week: sales ${kes(v.reduce((a,b)=>a+b,0))} · profit ${kes(S.days.reduce((a,x)=>a+ +x.profit_estimate,0))}</p>`}
+function summaryText(){const td=today(),t=S.days.find(d=>d.day==td)||{};
+ const ts=S.sales.filter(s=>!s.voided&&new Date(s.created_at).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})==td);
+ const by={cash:0,mpesa:0,debt:0};ts.forEach(s=>{if(s.method in by)by[s.method]+= +s.total});
+ const m={};ts.forEach(s=>(s.sale_items||[]).forEach(i=>{m[i.name]=(m[i.name]||0)+ +i.qty}));
+ const top=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,q])=>n+' x'+q).join(', ');
+ const low=S.products.filter(p=>p.stock_qty<=p.low_stock_at).map(p=>p.name+' ('+p.stock_qty+')');
+ const L=['*'+S.shop.name+' - '+td+'*','Sales: '+kes(t.sales_total)+' ('+ts.length+' sales)','Cash '+kes(by.cash)+' | M-Pesa '+kes(by.mpesa)+' | Debt '+kes(by.debt)];
+ if(S.role!='staff')L.push('Profit (est.): '+kes(t.profit_estimate));
+ if(top)L.push('Top: '+top);
+ L.push('Owed to you: '+kes(owed())+' ('+debtors()+' customers)');
+ if(low.length)L.push('Running low: '+low.slice(0,8).join(', '));
+ return L.join('\n')}
+function shareSummary(){window.open('https://wa.me/?text='+encodeURIComponent(summaryText()),'_blank')}
 
 boot();
 </script></body></html>

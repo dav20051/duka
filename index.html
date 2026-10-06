@@ -16,6 +16,25 @@ button.p,button.on{background:#0f766e;color:#fff}button.s{padding:6px 10px;font-
 nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #dde3e0}
 nav button{flex:1;border:0;border-radius:0;padding:16px 0;color:#444}nav button.on{background:#0f766e;color:#fff}
 h1{color:#0f766e;margin:0}h3{margin:18px 0 4px}a{color:#0f766e}.lb{display:block;font-size:13px;color:#6b7280;margin-top:8px}.ex{color:#b45309;font-weight:600}
+:root{color-scheme:dark;--bg:#1d1815;--card:#2a2320;--line:#3d3430;--tx:#f0e6d8;--mut:#a89684;--accent:#e2a65b;--on:#2a1d0e;--gold:#e2a65b;--rose:#d9786a}
+:root[data-theme=light]{color-scheme:light;--bg:#efe5d6;--card:#fbf5ea;--line:#dccfba;--tx:#3a2e27;--mut:#8a7866;--accent:#b9702f;--on:#fff8ee;--gold:#c9923a;--rose:#c0604f}
+body{background:var(--bg);color:var(--tx)}
+input,select{background:var(--card);color:var(--tx);border-color:var(--line)}
+input::placeholder{color:var(--mut)}
+button{background:transparent;color:var(--accent);border-color:var(--accent)}
+button.p,button.on{background:var(--accent);color:var(--on);border-color:var(--accent)}
+.row,.card{background:var(--card);border-radius:14px}
+.row small,.lb,.card small{color:var(--mut)}.card small{display:block}
+.low{color:var(--rose)}.ex{color:var(--gold)}
+nav{background:var(--card);border-top:1px solid var(--line)}
+nav button{color:var(--mut);background:transparent}nav button.on{background:var(--accent);color:var(--on)}
+h1,a{color:var(--accent)}
+.hero small{color:var(--mut)}.hero h2{margin:2px 0 14px;font-size:24px}
+.bars{display:flex;gap:6px;align-items:flex-end;height:120px;background:var(--card);border-radius:14px;padding:12px 10px 6px}
+.bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.bar i{display:block;width:100%;background:var(--accent);border-radius:6px 6px 0 0;opacity:.9}
+.bar small{font-size:11px;color:var(--mut)}
+.mix{display:flex;height:12px;border-radius:8px;overflow:hidden;background:var(--line)}.mix i{display:block}
 </style></head><body>
 <div id="app"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -54,11 +73,12 @@ async function boot(){
  if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
  await load();render()}
 async function load(){
- const [p,c,d]=await Promise.all([
+ const [p,c,d,sl]=await Promise.all([
   sb.from('products').select('*').eq('active',true).order('name'),
   sb.from('customer_balances').select('*').order('name'),
-  sb.from('daily_summary').select('*').order('day',{ascending:false}).limit(7)]);
- S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[]}
+  sb.from('daily_summary').select('*').order('day',{ascending:false}).limit(7),
+  sb.from('sales').select('created_at,total,paid,method,sale_items(name,qty,unit_price,unit_cost)').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).order('created_at',{ascending:false}).limit(300)]);
+ S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[]}
 
 const TABS={sell:'Sell',stock:'Stock',debts:'Debts',today:'Today'};
 function go(t){S.tab=t;render()}
@@ -71,12 +91,12 @@ const VIEWS={
  debts:()=>{const d=S.customers.filter(c=>c.balance>0);return`<h3>Add customer</h3><input id="cn" placeholder="Name"><input id="cp" placeholder="Phone e.g. 0712345678">
   <button class="p" onclick="addCustomer()">Save customer</button><h3>Who owes you (${kes(d.reduce((a,c)=>a+Number(c.balance),0))})</h3>
   ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank"><button class="s">Remind</button></a>`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
- today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<h3>${esc(S.shop.name)}</h3>
+ today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
   <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
-  <div class="card">New debt<b>${kes(t.new_debt)}</b></div><div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div></div>
+  <div class="card">New debt<b>${kes(t.new_debt)}</b></div><div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div><div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div><div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div></div>${payMix()}${chart()}${topSellers()}${recent()}
   <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
-  ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}<h3>Last 7 days</h3>${S.days.map(d=>`<div class="row">${d.day}<span>${kes(d.sales_total)}</span></div>`).join('')}
-  <p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><button onclick="logout()">Log out</button>`}};
+  ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}
+  <p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
 
 function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
  `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
@@ -161,6 +181,24 @@ const CFG={
  pharmacy:{cat:1,var:1,sku:1,exp:1,varph:'Strength e.g. 500mg',units:['pc','pkt','strip','box','bottle','ml','g']},
  agrovet:{cat:1,var:1,sku:1,exp:1,varph:'Pack size e.g. 1kg',units:['kg','bag','pc','L','ml','g','pkt','bottle']}};
 const cfg=()=>CFG[S.shop.type]||CFG.general;
+
+S.sales=[];
+try{document.documentElement.dataset.theme=localStorage.getItem('th')||'dark'}catch(e){}
+function toggleTheme(){const t=document.documentElement.dataset.theme=='light'?'dark':'light';document.documentElement.dataset.theme=t;try{localStorage.setItem('th',t)}catch(e){}}
+const owed=()=>S.customers.reduce((a,c)=>a+Math.max(0,+c.balance),0);
+const debtors=()=>S.customers.filter(c=>c.balance>0).length;
+const stockVal=()=>S.products.reduce((a,p)=>a+p.stock_qty*p.buy_price,0);
+const hm=t=>new Date(t).toLocaleTimeString('en-KE',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Nairobi'});
+function chart(){const d=[...S.days].reverse(),m=Math.max(1,...d.map(x=>+x.sales_total));
+ return d.length?`<h3>Last 7 days</h3><div class="bars">${d.map(x=>`<div class="bar"><i style="height:${Math.max(4,Math.round(x.sales_total/m*80))}px"></i><small>${x.day.slice(8)}</small></div>`).join('')}</div><p class="lb">Week: sales ${kes(d.reduce((a,x)=>a+ +x.sales_total,0))} · profit ${kes(d.reduce((a,x)=>a+ +x.profit_estimate,0))}</p>`:''}
+function topSellers(){const m={};S.sales.forEach(s=>(s.sale_items||[]).forEach(i=>{m[i.name]=m[i.name]||{q:0,r:0};m[i.name].q+=+i.qty;m[i.name].r+=i.qty*i.unit_price}));
+ const t=Object.entries(m).sort((a,b)=>b[1].r-a[1].r).slice(0,5);
+ return t.length?`<h3>Top sellers (7 days)</h3>${t.map(([n,v],i)=>`<div class="row"><div>${i+1}. ${esc(n)}<small>${v.q} sold</small></div><b>${kes(v.r)}</b></div>`).join('')}`:''}
+function payMix(){const td=today(),x={cash:0,mpesa:0,debt:0};
+ S.sales.filter(s=>new Date(s.created_at).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})==td).forEach(s=>{if(s.method in x)x[s.method]+= +s.total});
+ const T=x.cash+x.mpesa+x.debt;if(!T)return'';const pc=k=>Math.round(x[k]/T*100);
+ return`<h3>Today by payment</h3><div class="mix"><i style="width:${pc('cash')}%;background:var(--accent)"></i><i style="width:${pc('mpesa')}%;background:#8fb996"></i><i style="width:${pc('debt')}%;background:var(--rose)"></i></div><p class="lb">Cash ${kes(x.cash)} · M-Pesa ${kes(x.mpesa)} · Debt ${kes(x.debt)}</p>`}
+function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,5).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}</small></div><b>${kes(s.total)}</b></div>`).join('')}`:''}
 
 boot();
 </script></body></html>

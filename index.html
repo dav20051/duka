@@ -35,6 +35,9 @@ h1,a{color:var(--accent)}
 .bar i{display:block;width:100%;background:var(--accent);border-radius:6px 6px 0 0;opacity:.9}
 .bar small{font-size:11px;color:var(--mut)}
 .mix{display:flex;height:12px;border-radius:8px;overflow:hidden;background:var(--line)}.mix i{display:block}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50}
+.sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;padding:14px 16px 24px;border-radius:18px 18px 0 0}
+.sheet h3{margin-top:4px}
 </style></head><body>
 <div id="app"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -199,6 +202,41 @@ function payMix(){const td=today(),x={cash:0,mpesa:0,debt:0};
  const T=x.cash+x.mpesa+x.debt;if(!T)return'';const pc=k=>Math.round(x[k]/T*100);
  return`<h3>Today by payment</h3><div class="mix"><i style="width:${pc('cash')}%;background:var(--accent)"></i><i style="width:${pc('mpesa')}%;background:#8fb996"></i><i style="width:${pc('debt')}%;background:var(--rose)"></i></div><p class="lb">Cash ${kes(x.cash)} · M-Pesa ${kes(x.mpesa)} · Debt ${kes(x.debt)}</p>`}
 function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,5).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}</small></div><b>${kes(s.total)}</b></div>`).join('')}`:''}
+
+function editProduct(id){
+ const p=S.products.find(x=>x.id==id),c=cfg();
+ const f=(l,i)=>`<label class="lb">${l}</label>${i}`;
+ const units=[...new Set([...unitsFor(),p.unit])].map(u=>`<option ${u==p.unit?'selected':''}>${esc(u)}</option>`).join('');
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>Edit product</h3>
+ ${f('Name',`<input id="en" value="${esc(p.name)}">`)}
+ ${c.cat?f('Category',`<input id="ec" value="${esc(p.category||'')}">`):''}
+ ${c.var?f(c.varph||'Size / variant',`<input id="ev" value="${esc(p.variant||'')}">`):''}
+ ${c.sku?f('SKU / barcode',`<input id="ek" value="${esc(p.sku||'')}">`):''}
+ <div class="g">${f('Buy price',`<input id="eb" type="number" step="any" value="${p.buy_price}">`)}${f('Sell price',`<input id="es" type="number" step="any" value="${p.sell_price}">`)}</div>
+ <div class="g">${f('Stock quantity',`<input id="eq" type="number" step="any" value="${p.stock_qty}">`)}${f('Unit',`<select id="eu">${units}</select>`)}</div>
+ ${f('Warn me when stock reaches',`<input id="er" type="number" step="any" value="${p.low_stock_at}">`)}
+ ${c.exp?f('Expiry date (earliest on the shelf)',`<input id="ex" type="date" value="${p.expiry||''}">`):''}
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveEdit('${p.id}')">Save</button></div>
+ <button class="s" style="color:var(--rose);border-color:var(--rose)" onclick="removeProduct('${p.id}')">Remove product</button>
+ </div></div>`)}
+function closeEdit(){const m=document.querySelector('.modal');if(m)m.remove()}
+async function saveEdit(id){
+ const p=S.products.find(x=>x.id==id),g=i=>{const e=$('#'+i);return e?e.value.trim():null};
+ const name=g('en');if(!name)return alert('Enter a name');
+ const q=+g('eq');if(isNaN(q)||q<0)return alert('Enter a valid stock quantity');
+ const u={name,buy_price:+g('eb')||0,sell_price:+g('es')||0,stock_qty:q,unit:g('eu')||p.unit,low_stock_at:+g('er')||0};
+ if(g('ec')!==null)u.category=g('ec')||null;
+ if(g('ev')!==null)u.variant=g('ev')||null;
+ if(g('ek')!==null)u.sku=g('ek')||null;
+ if(g('ex')!==null)u.expiry=g('ex')||null;
+ const {error}=await sb.from('products').update(u).eq('id',id);
+ if(error)return alert(error.message.includes('products_shop_sku')?'That SKU is already used by another product':error.message);
+ if(q!==+p.stock_qty)await sb.from('stock_movements').insert({shop_id:S.shop.id,product_id:id,change:q-p.stock_qty,reason:'adjustment'});
+ closeEdit();await load();render()}
+async function removeProduct(id){if(!confirm('Remove this product from your list? Past sales are kept.'))return;
+ const {error}=await sb.from('products').update({active:false,sku:null}).eq('id',id);
+ if(error)return alert(error.message);closeEdit();await load();render()}
 
 boot();
 </script></body></html>

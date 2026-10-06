@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>Duka</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:#f4f6f5;color:#1a1a1a}
+main{padding:14px 14px 90px;max-width:560px;margin:auto}main.c{padding-top:60px}
+input,select{width:100%;padding:12px;margin:5px 0;border:1px solid #cbd5d1;border-radius:10px;font:inherit;background:#fff}
+button{padding:11px 14px;border:1px solid #0f766e;background:#fff;color:#0f766e;border-radius:10px;font:inherit;cursor:pointer}
+button.p,button.on{background:#0f766e;color:#fff}button.s{padding:6px 10px;font-size:14px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#fff;padding:10px 12px;margin:6px 0;border-radius:10px}
+.row small{color:#6b7280;display:block}.low{color:#b91c1c;font-weight:600}
+.g{display:grid;grid-template-columns:1fr 1fr;gap:8px}.card{background:#fff;border-radius:10px;padding:12px}
+.card b{display:block;font-size:20px}.m{display:flex;gap:6px;margin:8px 0}.m button{flex:1}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:#fff;border-top:1px solid #dde3e0}
+nav button{flex:1;border:0;border-radius:0;padding:16px 0;color:#444}nav button.on{background:#0f766e;color:#fff}
+h1{color:#0f766e;margin:0}h3{margin:18px 0 4px}a{color:#0f766e}.lb{display:block;font-size:13px;color:#6b7280;margin-top:8px}.ex{color:#b45309;font-weight:600}
+</style></head><body>
+<div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL='https://tlcoxnnliwrvmnezsiqh.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsY294bm5saXdydm1uZXpzaXFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMzY1MDUsImV4cCI6MjEwNjcxMjUwNX0.KpGzlT0Uplk1gWxBgByTBXkSF693zfo0bRjYilrU2Qc';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=s=>document.querySelector(s), app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const kes=n=>'KES '+Number(n||0).toLocaleString('en-KE');
+const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
+const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
+
+function authView(){app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
+<input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)">
+<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button></main>`}
+async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;
+ const r=m=='in'?await sb.auth.signInWithPassword({email:e,password:p}):await sb.auth.signUp({email:e,password:p});
+ if(r.error)return alert(r.error.message);
+ if(!r.data.session)return alert('Check your email to confirm, then log in.');boot()}
+function setupView(){app.innerHTML=`<main class="c"><h1>Set up your shop</h1><p>30 days free.</p>
+<input id="sn" placeholder="Shop name"><input id="sp" placeholder="Shop phone (optional)"><select id="st">${TYPES.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select><p><small>Choose carefully: this decides which fields your shop sees, and only we can change it later.</small></p>
+<button class="p" onclick="createShop()">Start</button></main>`}
+async function createShop(){const n=$('#sn').value.trim();if(!n)return alert('Enter the shop name');
+ const {error}=await sb.rpc('create_shop',{p_name:n,p_phone:$('#sp').value.trim()||null,p_type:$('#st').value});
+ if(error)return alert(error.message);boot()}
+function lockedView(){app.innerHTML=`<main class="c"><h1>Subscription ended</h1><p>Your access for <b>${esc(S.shop.name)}</b> has expired. Pay your monthly fee by M-Pesa and send us the code to reopen it.</p><button onclick="logout()">Log out</button></main>`}
+async function logout(){await sb.auth.signOut();S.shop=null;authView()}
+
+async function boot(){
+ const {data:{session}}=await sb.auth.getSession();
+ if(!session)return authView();
+ S.uid=session.user.id;
+ const {data}=await sb.from('shop_members').select('shops(id,name,paid_until,type)').limit(1);
+ if(!data||!data.length)return setupView();
+ S.shop=data[0].shops;
+ if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
+ await load();render()}
+async function load(){
+ const [p,c,d]=await Promise.all([
+  sb.from('products').select('*').eq('active',true).order('name'),
+  sb.from('customer_balances').select('*').order('name'),
+  sb.from('daily_summary').select('*').order('day',{ascending:false}).limit(7)]);
+ S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[]}
+
+const TABS={sell:'Sell',stock:'Stock',debts:'Debts',today:'Today'};
+function go(t){S.tab=t;render()}
+function render(){app.innerHTML=`<main>${VIEWS[S.tab]()}</main><nav>${Object.keys(TABS).map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]}</button>`).join('')}</nav>`}
+const VIEWS={
+ sell:()=>`<input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
+ stock:()=>`<h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?'<input id="sk" placeholder="SKU / barcode (optional)">':''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
+  <div class="g"><input id="pq" type="number" step="any" placeholder="Quantity in stock"><select id="pu">${unitsFor().map(u=>`<option>${u}</option>`).join('')}</select></div><label class="lb">Warn me when stock reaches</label><input id="pr" type="number" step="any" value="5">${cfg().exp?'<label class="lb">Expiry date (earliest on the shelf)</label><input id="px" type="date">':''}<button class="p" onclick="addProduct()">Save product</button><h3>Stock</h3>
+  ${S.products.map(p=>`<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · <span class="${p.stock_qty<=p.low_stock_at?'low':''}">${p.stock_qty} ${esc(p.unit)} left</span> · reorder at ${p.low_stock_at}${meta(p)}</small></div><div><button class="s" onclick="restock('${p.id}')">+ Stock</button> <button class="s" onclick="editProduct('${p.id}')">Edit</button></div></div>`).join('')||'<p>No products yet.</p>'}`,
+ debts:()=>{const d=S.customers.filter(c=>c.balance>0);return`<h3>Add customer</h3><input id="cn" placeholder="Name"><input id="cp" placeholder="Phone e.g. 0712345678">
+  <button class="p" onclick="addCustomer()">Save customer</button><h3>Who owes you (${kes(d.reduce((a,c)=>a+Number(c.balance),0))})</h3>
+  ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank"><button class="s">Remind</button></a>`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
+ today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<h3>${esc(S.shop.name)}</h3>
+  <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
+  <div class="card">New debt<b>${kes(t.new_debt)}</b></div><div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div></div>
+  <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
+  ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}<h3>Last 7 days</h3>${S.days.map(d=>`<div class="row">${d.day}<span>${kes(d.sales_total)}</span></div>`).join('')}
+  <p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><button onclick="logout()">Log out</button>`}};
+
+function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
+ `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
+const total=()=>Object.entries(S.cart).reduce((a,[id,q])=>a+q*price(S.products.find(p=>p.id==id)),0);
+function cartView(){const e=Object.entries(S.cart);if(!e.length)return'';
+ return`<h3>Cart</h3>${e.map(([id,q])=>{const p=S.products.find(x=>x.id==id);return`<div class="row"><div>${pn(p)} × ${q} ${esc(p.unit)}<small>${kes(q*price(p))}</small></div><div><button class="s" onclick="setQty('${id}')">Qty</button> <button class="s" onclick="setPrice('${id}')">Price</button> <button class="s" onclick="dec('${id}')">−</button></div></div>`}).join('')}
+ <div class="m">${['cash','mpesa','debt'].map(m=>`<button class="${S.method==m?'on':''}" onclick="S.method='${m}';$('#cart').innerHTML=cartView()">${m=='mpesa'?'M-Pesa':m[0].toUpperCase()+m.slice(1)}</button>`).join('')}</div>
+ ${S.method=='debt'?`<select onchange="S.cust=this.value"><option value="">Choose customer</option>${S.customers.map(c=>`<option value="${c.customer_id}" ${S.cust==c.customer_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:''}
+ <button class="p" style="width:100%" onclick="checkout()">Sell · ${kes(total())}</button>`}
+function add(id){S.cart[id]=(S.cart[id]||0)+1;$('#cart').innerHTML=cartView()}
+function dec(id){if(--S.cart[id]<=0)delete S.cart[id];$('#cart').innerHTML=cartView()}
+async function checkout(){
+ const items=Object.entries(S.cart).map(([id,q])=>({p:S.products.find(x=>x.id==id),q}));
+ const t=total();let paid=t,code=null;
+ if(S.method=='debt'){if(!S.cust)return alert('Choose a customer');
+  const a=prompt('Amount paid now (0 if none)','0');if(a===null)return;paid=Math.min(t,Math.max(0,+a||0))}
+ if(S.method=='mpesa')code=(prompt('M-Pesa code (optional)')||'').toUpperCase()||null;
+ const {data:s,error}=await sb.from('sales').insert({shop_id:S.shop.id,customer_id:S.method=='debt'?S.cust:null,total:t,paid,method:S.method,mpesa_code:code,created_by:S.uid}).select().single();
+ if(error)return alert(error.message);
+ const r=await sb.from('sale_items').insert(items.map(({p,q})=>({sale_id:s.id,shop_id:S.shop.id,product_id:p.id,name:p.name+(p.variant?' · '+p.variant:''),qty:q,unit_price:price(p),unit_cost:p.buy_price})));
+ if(r.error)return alert(r.error.message);
+ S.cart={};S.pr={};S.cust='';S.q='';await load();render();alert('Sale saved ✔')}
+
+async function addProduct(){const v=i=>{const e=$('#'+i);return e?e.value.trim():''};if(!v('pn'))return alert('Enter a name');
+ const {error}=await sb.from('products').insert({shop_id:S.shop.id,name:v('pn'),buy_price:+v('pb')||0,sell_price:+v('ps')||0,stock_qty:+v('pq')||0,unit:v('pu'),category:v('pc')||null,variant:v('pv')||null,sku:v('sk')||null,expiry:v('px')||null,low_stock_at:v('pr')===''?5:(+v('pr')||0)});
+ if(error)return alert(error.message);await load();render()}
+async function restock(id){const q=+prompt('Quantity added');if(!q)return;const p=S.products.find(x=>x.id==id);
+ await sb.from('products').update({stock_qty:+p.stock_qty+q,...askExp(p)}).eq('id',id);
+ await sb.from('stock_movements').insert({shop_id:S.shop.id,product_id:id,change:q,reason:'restock'});
+ await load();render()}
+async function addCustomer(){const n=$('#cn').value.trim();if(!n)return alert('Enter a name');const ph=$('#cp').value.trim();if(ph&&S.customers.some(c=>c.phone===ph))return alert('A customer with this phone number already exists');
+ const {error}=await sb.from('customers').insert({shop_id:S.shop.id,name:n,phone:$('#cp').value.trim()||null});
+ if(error)return alert(error.message);await load();render()}
+async function payDebt(id){const c=S.customers.find(x=>x.customer_id==id);
+ const a=+prompt(`${c.name} owes ${kes(c.balance)}. Amount paid:`);if(!a)return;
+ const m=confirm('OK = M-Pesa, Cancel = Cash')?'mpesa':'cash';
+ const {error}=await sb.from('debt_payments').insert({shop_id:S.shop.id,customer_id:id,amount:a,method:m});
+ if(error)return alert(error.message);await load();render()}
+function wa(c){let p=(c.phone||'').replace(/\D/g,'');if(p.startsWith('0'))p='254'+p.slice(1);
+ return`https://wa.me/${p}?text=`+encodeURIComponent(`Hello ${c.name}, a friendly reminder that your balance at ${S.shop.name} is ${kes(c.balance)}. Thank you!`)}
+
+const UNITS=['pc','kg','g','L','ml','m','pkt','dozen','bag','box','bottle','tray'];
+function setQty(id){const u=S.products.find(p=>p.id==id).unit,q=parseFloat(prompt('Quantity in '+u+' (e.g. 0.5)',S.cart[id]));if(q>0){S.cart[id]=q;$('#cart').innerHTML=cartView()}}
+async function editProduct(id){const p=S.products.find(x=>x.id==id);
+ const sp=prompt('Selling price per '+p.unit,p.sell_price);if(sp===null)return;
+ const bp=prompt('Buying price per '+p.unit,p.buy_price);if(bp===null)return;
+ const lo=prompt('Reorder at (warn when stock reaches this)',p.low_stock_at);if(lo===null)return;
+ const un=prompt('Unit: '+unitsFor().join(', '),p.unit);if(un===null)return;
+ const sk=cfg().sku?prompt('SKU / barcode (empty = none)',p.sku||''):(p.sku||'');if(sk===null)return;
+ const ex=cfg().exp?prompt('Earliest expiry YYYY-MM-DD (empty = none)',p.expiry||''):(p.expiry||'');if(ex===null)return;
+ if(ex.trim()&&!/^\d{4}-\d{2}-\d{2}$/.test(ex.trim()))return alert('Use the format YYYY-MM-DD');
+ const {error}=await sb.from('products').update({sell_price:+sp||0,buy_price:+bp||0,low_stock_at:+lo||0,unit:un.trim()||p.unit,sku:sk.trim()||null,expiry:ex.trim()||null}).eq('id',id);
+ if(error)return alert(error.message);await load();render()}
+
+const pn=p=>esc(p.name)+(p.variant?' · '+esc(p.variant):'');
+const TYPES=[['general','General shop / duka'],['hardware','Hardware'],['boutique','Boutique / clothes'],['pharmacy','Pharmacy / chemist'],['agrovet','Agrovet'],['other','Other']];
+const VARPH={boutique:'Size / colour e.g. M, Black',hardware:'Size / spec e.g. 1/2 inch',pharmacy:'Strength e.g. 500mg',agrovet:'Pack size e.g. 1kg'};
+const TOP={hardware:['pc','m','kg','bag','L','roll','length','sheet','box'],boutique:['pc','pair','set','m'],pharmacy:['pc','pkt','box','bottle','ml','g'],agrovet:['kg','bag','pc','L','ml','g','pkt']};
+function unitsFor(){return cfg().units}
+S.pr={};
+const price=p=>S.pr[p.id]??p.sell_price;
+function setPrice(id){const p=S.products.find(x=>x.id==id),v=parseFloat(prompt('Price per '+p.unit+' for this sale (normal: '+p.sell_price+')',price(p)));
+ if(!(v>=0))return;if(v<p.buy_price&&!confirm('Below your buying price ('+p.buy_price+'). Sell at a loss?'))return;
+ S.pr[p.id]=v;$('#cart').innerHTML=cartView()}
+async function setType(t){const {error}=await sb.from('shops').update({type:t}).eq('id',S.shop.id);
+ if(error)return alert(error.message);S.shop.type=t;render()}
+
+const soon=d=>new Date(Date.now()+d*864e5).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
+const meta=p=>(cfg().sku&&p.sku?' · '+esc(p.sku):'')+(cfg().exp&&p.expiry?` · <span class="${p.expiry<=soon(30)?'ex':''}">exp ${p.expiry}</span>`:'');
+function scanAdd(el){const c=el.value.trim().toLowerCase(),p=S.products.find(x=>x.sku&&x.sku.toLowerCase()==c);
+ if(!p)return;add(p.id);S.q='';el.value='';$('#pl').innerHTML=plist()}
+function askExp(p){if(!cfg().exp)return{};
+ const e=(prompt('Earliest expiry date on the shelf now, YYYY-MM-DD (empty = keep)',p.expiry||'')||'').trim();
+ if(!e)return{};if(!/^\d{4}-\d{2}-\d{2}$/.test(e)){alert('Use the format YYYY-MM-DD');return{}}return{expiry:e}}
+
+const U1=['pc','kg','g','L','ml','pkt','dozen','bag','box','bottle','tray'];
+const CFG={
+ general:{cat:0,var:0,sku:0,exp:0,varph:'',units:U1},
+ other:{cat:0,var:0,sku:0,exp:0,varph:'',units:[...U1,'m','pair','set']},
+ hardware:{cat:1,var:1,sku:1,exp:0,varph:'Size / spec e.g. 1/2 inch',units:['pc','m','kg','bag','L','roll','length','sheet','box','pkt']},
+ boutique:{cat:1,var:1,sku:1,exp:0,varph:'Size / colour e.g. M, Black',units:['pc','pair','set','m']},
+ pharmacy:{cat:1,var:1,sku:1,exp:1,varph:'Strength e.g. 500mg',units:['pc','pkt','strip','box','bottle','ml','g']},
+ agrovet:{cat:1,var:1,sku:1,exp:1,varph:'Pack size e.g. 1kg',units:['kg','bag','pc','L','ml','g','pkt','bottle']}};
+const cfg=()=>CFG[S.shop.type]||CFG.general;
+
+boot();
+</script></body></html>

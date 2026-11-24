@@ -38,6 +38,11 @@ h1,a{color:var(--accent)}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50}
 .sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;padding:14px 16px 24px;border-radius:18px 18px 0 0}
 .sheet h3{margin-top:4px}
+.plans{display:grid;gap:10px;margin:10px 0}
+.plan{position:relative;border:1px solid var(--line)}.plan.pop{border-color:var(--accent)}.plan.cur{outline:2px solid var(--accent)}
+.plan em{position:absolute;top:-10px;right:12px;background:var(--accent);color:var(--on);font-style:normal;font-size:12px;padding:2px 8px;border-radius:10px}
+.pn{display:block;font-weight:600;color:var(--accent)}.plan b small{display:inline;font-size:13px;font-weight:400}
+.plan ul{margin:8px 0 0;padding-left:18px;font-size:14px}.plan li{margin:2px 0}
 </style></head><body>
 <div id="app"></div>
 <script src="vendor/supabase-js-2.45.4.js"></script>
@@ -47,15 +52,35 @@ const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const kes=n=>'KES '+Number(n||0).toLocaleString('en-KE');
-// Support WhatsApp number shown to shops whose subscription ended, e.g. '254712345678'. Empty = hidden.
-const SUPPORT_PHONE='';
+// ---------- Business & pricing ----------
+const BUSINESS='JOEDFRAME TECHNOLOGIES', SUPPORT_PHONE='254701252785', PAY_TO='0701 252 785';
+// Display only: limits are enforced in the database (private.plan_limit).
+const PLANS={
+ basic:{name:'Basic',m:500,f:['1 staff account','Up to 300 products','Sell, stock & debts','WhatsApp debt reminders','Daily WhatsApp summary','Download your data']},
+ standard:{name:'Standard',m:1000,f:['Up to 5 staff accounts','Unlimited products','Everything in Basic','Profit & stock value','7-day chart & top sellers']},
+ premium:{name:'Premium',m:2000,f:['Unlimited staff accounts','Unlimited products','Everything in Standard','Priority WhatsApp support','We load your stock list for you']}};
+// [months, days added, price factor, label]
+const PERIODS=[[1,30,1,'1 month'],[6,182,.9,'6 months · save 10%'],[12,365,10/12,'1 year · 2 months free']];
+const planPrice=(p,mo)=>Math.round(PLANS[p].m*mo*PERIODS.find(x=>x[0]==mo)[2]);
+const planName=p=>p=='trial'?'Free trial':(PLANS[p]||{name:p}).name;
+const reports=()=>S.role!='staff'&&S.shop.plan!='basic';
+function pricingHTML(cur){return`<div class="plans">${Object.entries(PLANS).map(([k,p])=>`<div class="card plan${k==cur?' cur':''}${k=='standard'?' pop':''}">
+ ${k=='standard'?'<em>Most popular</em>':''}<span class="pn">${p.name}</span><b>${kes(p.m)}<small>/month</small></b>
+ <small>6 months ${kes(planPrice(k,6))} · 1 year ${kes(planPrice(k,12))}</small><ul>${p.f.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>`}
+function payHTML(){const msg=encodeURIComponent(`Hello ${BUSINESS}, I have paid for Duka.\nShop: ${S.shop?S.shop.name:''}\nPlan (Basic/Standard/Premium): \nPeriod (1 month/6 months/1 year): \nM-Pesa code: `);
+ return`<div class="card"><span class="pn">How to pay</span><small>1. M-Pesa <b>Send Money</b> to <b>${PAY_TO}</b> (${BUSINESS}).<br>2. Send us the M-Pesa code on WhatsApp. We activate your shop within the hour.</small>
+ <p><a href="https://wa.me/${SUPPORT_PHONE}?text=${msg}" target="_blank" rel="noopener"><button class="p" style="width:100%">Send M-Pesa code on WhatsApp</button></a></p></div>`}
+function showPlans(){document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>Plans</h3>
+ <p class="lb">You are on <b>${esc(planName(S.shop.plan))}</b>, paid until ${esc(S.shop.paid_until||'-')}. Paying early adds to your remaining days.</p>${pricingHTML(S.shop.plan)}${payHTML()}<p><button onclick="closeEdit()" style="width:100%">Close</button></p></div></div>`)}
 const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 
 function authView(){app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
 <input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)">
 <button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p>
-<p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p></main>`}
+<p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+<h3>Simple pricing</h3><p class="lb">Start with 30 days free, with all Standard features. Pay by M-Pesa. Save up to 2 months when you pay yearly.</p>${pricingHTML()}
+<p class="lb">Questions? <a href="https://wa.me/${SUPPORT_PHONE}" target="_blank" rel="noopener">WhatsApp ${PAY_TO}</a></p></main>`}
 async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;
  const r=m=='in'?await sb.auth.signInWithPassword({email:e,password:p}):await sb.auth.signUp({email:e,password:p});
  if(r.error)return alert(r.error.message);
@@ -66,10 +91,10 @@ function setupView(){app.innerHTML=`<main class="c"><h1>Set up your shop</h1><p>
 async function createShop(){const n=$('#sn').value.trim();if(!n)return alert('Enter the shop name');
  const {error}=await sb.rpc('create_shop',{p_name:n,p_phone:$('#sp').value.trim()||null,p_type:$('#st').value});
  if(error)return alert(error.message);boot()}
-function lockedView(){const msg=encodeURIComponent(`Hello, I want to renew Duka for ${S.shop.name}. My M-Pesa code is: `);
- app.innerHTML=`<main class="c"><h1>Subscription ended</h1><p>Your access for <b>${esc(S.shop.name)}</b> has expired. Pay your monthly fee by M-Pesa and send us the code to reopen it.</p>
- ${SUPPORT_PHONE?`<p><a href="https://wa.me/${SUPPORT_PHONE}?text=${msg}" target="_blank" rel="noopener"><button class="p">Send M-Pesa code on WhatsApp</button></a></p>`:''}
- <p class="lb">Your records are safe. You can still download them:</p>${S.role=='owner'?exportButtons():''}
+function lockedView(){
+ app.innerHTML=`<main class="c"><h1>${S.shop.plan=='trial'?'Free trial ended':'Subscription ended'}</h1><p>Choose a plan to keep using Duka for <b>${esc(S.shop.name)}</b>. Your records are safe and nothing has been deleted.</p>
+ ${S.role=='owner'?pricingHTML(S.shop.plan)+payHTML():'<p>Ask the shop owner to renew the subscription.</p>'}
+ <p class="lb">You can still download your records:</p>${S.role=='owner'?exportButtons():''}
  <p>${S.admin?'<button onclick="loadAdmin()">Admin</button> ':''}<button onclick="logout()">Log out</button></p></main>`}
 async function logout(){await sb.auth.signOut();S.shop=null;authView()}
 
@@ -79,7 +104,7 @@ async function boot(){
  if(S.rec)return recoverView();S.uid=session.user.id;
  try{await sb.rpc('claim_invites')}catch(e){}
  try{S.admin=(await sb.rpc('am_i_admin')).data===true}catch(e){S.admin=false}
- const {data}=await sb.from('shop_members').select('role,shops(id,name,paid_until,type)').eq('user_id',S.uid).limit(1);
+ const {data}=await sb.from('shop_members').select('role,shops(id,name,paid_until,type,plan)').eq('user_id',S.uid).limit(1);
  if(!data||!data.length)return S.admin?loadAdmin():setupView();
  S.shop=data[0].shops;S.role=data[0].role;
  if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
@@ -107,10 +132,10 @@ const VIEWS={
   ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank"><button class="s">Remind</button></a>`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
  today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
   <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
-  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${S.role=='staff'?'':`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${S.role=='staff'?'':`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${S.role=='staff'?'':chart7()+topSellers()}${recent()}
+  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${reports()?`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`:''}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${reports()?`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`:''}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${reports()?chart7()+topSellers():(S.role=='owner'?`<div class="card" style="margin-top:12px"><span class="pn">See your profit, stock value and best sellers</span><small>Included in Standard and Premium.</small><p><button class="s" onclick="showPlans()">Upgrade</button></p></div>`:'')}${recent()}
   <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
   ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}
-  ${staffView()}${S.role=='owner'?'<h3>Download your data</h3>'+exportButtons():''}<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
+  ${staffView()}${S.role=='owner'?'<h3>Download your data</h3>'+exportButtons():''}${S.role=='owner'?`<h3>Plan</h3><div class="row"><div>${esc(planName(S.shop.plan))}<small class="${S.shop.paid_until&&S.shop.paid_until<=soon(5)?'low':''}">Paid until ${esc(S.shop.paid_until||'-')}</small></div><button class="s" onclick="showPlans()">Renew / upgrade</button></div>`:`<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p>`}<p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
 
 function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
  `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
@@ -281,7 +306,7 @@ function summaryText(){const td=today(),t=S.days.find(d=>d.day==td)||{};
  const top=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,q])=>n+' x'+q).join(', ');
  const low=S.products.filter(p=>p.stock_qty<=p.low_stock_at).map(p=>p.name+' ('+p.stock_qty+')');
  const L=['*'+S.shop.name+' - '+td+'*','Sales: '+kes(t.sales_total)+' ('+ts.length+' sales)','Cash '+kes(by.cash)+' | M-Pesa '+kes(by.mpesa)+' | Debt '+kes(by.debt)];
- if(S.role!='staff')L.push('Profit (est.): '+kes(t.profit_estimate));
+ if(reports())L.push('Profit (est.): '+kes(t.profit_estimate));
  if(top)L.push('Top: '+top);
  L.push('Owed to you: '+kes(owed())+' ('+debtors()+' customers)');
  if(low.length)L.push('Running low: '+low.slice(0,8).join(', '));
@@ -322,23 +347,37 @@ async function exportData(kind,btn){
  finally{btn.disabled=false;btn.textContent=label}}
 
 // ---------- Platform admin (only for accounts in private.admins) ----------
-async function loadAdmin(){const {data,error}=await sb.rpc('admin_list_shops');if(error)return alert(error.message);
- S.adm=data||[];const locked=!S.shop||(S.shop.paid_until&&S.shop.paid_until<today());
+async function loadAdmin(){const [l,rv]=await Promise.all([sb.rpc('admin_list_shops'),sb.rpc('admin_revenue')]);
+ if(l.error)return alert(l.error.message);S.adm=l.data||[];S.rev=rv.data||[];const locked=!S.shop||(S.shop.paid_until&&S.shop.paid_until<today());
  if(locked)app.innerHTML=`<main>${VIEWS.admin()}<p>${S.shop?'<button onclick="boot()">Back</button> ':''}<button onclick="logout()">Log out</button></p></main>`;
  else{S.tab='admin';render()}}
-VIEWS.admin=()=>{const exp=S.adm.filter(s=>s.paid_until&&s.paid_until<today()).length;
- return`<h3>Admin · ${S.adm.length} shops · ${exp} expired</h3><input placeholder="Search shop, owner email or phone" value="${esc(S.aq||'')}" oninput="S.aq=this.value;$('#al').innerHTML=adminList()"><div id="al">${adminList()}</div>`};
+VIEWS.admin=()=>{const td=today(),live=S.adm.filter(s=>!s.paid_until||s.paid_until>=td);
+ const n=k=>live.filter(s=>s.plan==k).length,mrr=['basic','standard','premium'].reduce((a,k)=>a+n(k)*PLANS[k].m,0);
+ const mo=td.slice(0,7),thisMonth=(S.rev.find(r=>r.month==mo)||{}).amount||0;
+ return`<h3>Admin</h3><div class="g"><div class="card">Paying shops<b>${n('basic')+n('standard')+n('premium')}</b><small>${n('basic')} Basic · ${n('standard')} Standard · ${n('premium')} Premium</small></div>
+ <div class="card">On trial<b>${n('trial')}</b><small>${S.adm.length-live.length} expired</small></div>
+ <div class="card">Monthly value<b>${kes(mrr)}</b><small>active plans at monthly price</small></div>
+ <div class="card">Collected ${mo}<b>${kes(thisMonth)}</b><small>${S.rev.slice(1,4).map(r=>esc(r.month)+': '+kes(r.amount)).join('<br>')||'no earlier months'}</small></div></div>
+ <h3>Shops (${S.adm.length})</h3><input placeholder="Search shop, owner email or phone" value="${esc(S.aq||'')}" oninput="S.aq=this.value;$('#al').innerHTML=adminList()"><div id="al">${adminList()}</div>`};
 function adminList(){const q=(S.aq||'').toLowerCase(),td=today(),typ=t=>(TYPES.find(x=>x[0]==t)||[0,t])[1];
  return S.adm.filter(s=>[s.name,s.owner_email,s.phone].join(' ').toLowerCase().includes(q)).map(s=>{const ex=s.paid_until&&s.paid_until<td;
-  return`<div class="row"><div>${esc(s.name)}<small>${esc(s.owner_email||'no owner')}${s.phone?' · '+esc(s.phone):''} · ${esc(typ(s.type))} · ${s.members} user(s)</small>
+  return`<div class="row"><div>${esc(s.name)} · <b>${esc(planName(s.plan))}</b><small>${esc(s.owner_email||'no owner')}${s.phone?' · '+esc(s.phone):''} · ${esc(typ(s.type))} · ${s.members} user(s) · ${s.products} products</small>
   <small><span class="${ex?'low':''}">${ex?'EXPIRED ':'Paid until '}${esc(s.paid_until||'-')}</span> · 30 days: ${kes(s.sales_30d)}${s.last_sale?' · last sale '+esc(String(s.last_sale).slice(0,10)):''}</small></div>
   <div><button class="s" onclick="adminPay('${s.id}')">+ Payment</button> <button class="s" onclick="adminType('${s.id}')">Type</button></div></div>`}).join('')||'<p>No shops match.</p>'}
-async function adminPay(id){const s=S.adm.find(x=>x.id==id);
- const days=parseInt(prompt(`Add how many days to ${s.name}?`,'30'),10);if(!(days>0))return;
- const amt=prompt('Amount received (KES), optional','');if(amt===null)return;
- const code=prompt('M-Pesa code, optional','');if(code===null)return;
- const {data,error}=await sb.rpc('admin_extend_shop',{p_shop:id,p_days:days,p_amount:amt.trim()?+amt:null,p_mpesa_code:code.trim()||null});
- if(error)return alert(error.message);alert(`${s.name} is now paid until ${data}`);loadAdmin()}
+function adminPay(id){const s=S.adm.find(x=>x.id==id),cur=PLANS[s.plan]?s.plan:'standard';
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>Record payment · ${esc(s.name)}</h3><p class="lb">Now: ${esc(planName(s.plan))}, paid until ${esc(s.paid_until||'-')}</p>
+ <label class="lb">Plan</label><select id="ap" onchange="apCalc()">${Object.entries(PLANS).map(([k,p])=>`<option value="${k}" ${k==cur?'selected':''}>${p.name} · ${kes(p.m)}/month</option>`).join('')}</select>
+ <label class="lb">Period</label><select id="ad" onchange="apCalc()">${PERIODS.map(([mo,,,l])=>`<option value="${mo}">${l}</option>`).join('')}</select>
+ <label class="lb">Amount received (KES)</label><input id="aa" type="number" step="any"><small class="lb" id="ah"></small>
+ <label class="lb">M-Pesa code</label><input id="ac" placeholder="e.g. SKL2ABC123" style="text-transform:uppercase">
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="adminPaySave('${s.id}',this)">Save payment</button></div></div></div>`);apCalc()}
+function apCalc(){const p=$('#ap').value,mo=+$('#ad').value,v=planPrice(p,mo);$('#aa').value=v;
+ $('#ah').textContent=mo>1?`List price ${kes(v)} (normally ${kes(PLANS[p].m*mo)})`:''}
+async function adminPaySave(id,btn){const mo=+$('#ad').value,code=$('#ac').value.trim(),amt=+$('#aa').value;
+ if(!code&&!confirm('No M-Pesa code entered. Save anyway?'))return;btn.disabled=true;
+ const {data,error}=await sb.rpc('admin_extend_shop',{p_shop:id,p_days:PERIODS.find(x=>x[0]==mo)[1],p_amount:amt>0?amt:null,p_mpesa_code:code||null,p_plan:$('#ap').value});
+ if(error){btn.disabled=false;return alert(error.message)}closeEdit();alert('Saved. Paid until '+data);loadAdmin()}
 async function adminType(id){const s=S.adm.find(x=>x.id==id);
  const t=prompt('Shop type: '+TYPES.map(x=>x[0]).join(', '),s.type);if(t===null||t.trim()==s.type)return;
  const {error}=await sb.rpc('admin_set_shop_type',{p_shop:id,p_type:t.trim().toLowerCase()});if(error)return alert(error.message);loadAdmin()}

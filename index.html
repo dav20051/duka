@@ -1,7 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#1d1815">
+<meta name="description" content="Duka: sales, stock and customer debts for Kenyan shops. Works offline, M-Pesa ready.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>Duka</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font:16px system-ui,sans-serif;background:#f4f6f5;color:#1a1a1a}
@@ -38,56 +42,183 @@ h1,a{color:var(--accent)}
 .modal{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center;z-index:50}
 .sheet{background:var(--bg);width:100%;max-width:560px;max-height:92vh;overflow:auto;padding:14px 16px 24px;border-radius:18px 18px 0 0}
 .sheet h3{margin-top:4px}
+.plans{display:grid;gap:10px;margin:10px 0}
+.plan{position:relative;border:1px solid var(--line)}.plan.pop{border-color:var(--accent)}.plan.cur{outline:2px solid var(--accent)}
+.plan em{position:absolute;top:-10px;right:12px;background:var(--accent);color:var(--on);font-style:normal;font-size:12px;padding:2px 8px;border-radius:10px}
+.pn{display:block;font-weight:600;color:var(--accent)}.plan b small{display:inline;font-size:13px;font-weight:400}
+.plan ul{margin:8px 0 0;padding-left:18px;font-size:14px}.plan li{margin:2px 0}
+.ob{background:var(--card);border:1px solid var(--gold);color:var(--tx);border-radius:12px;padding:8px 12px;margin-bottom:10px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ob.err{border-color:var(--rose)}.pend{color:var(--gold);font-size:12px}
+.rc{background:#fff;color:#111;border-radius:10px;padding:14px;font:13px/1.45 ui-monospace,Menlo,Consolas,monospace}
+.rc h4{margin:0;text-align:center;font-size:15px}.rc .c{text-align:center}.rc hr{border:0;border-top:1px dashed #999;margin:8px 0}
+.rc .l{display:flex;justify-content:space-between;gap:8px}.rc .t{font-weight:700;font-size:15px}
+.tools{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+@media print{body *{visibility:hidden}#rcpt,#rcpt *{visibility:visible}#rcpt{position:absolute;left:0;top:0;width:58mm;padding:0;border-radius:0;font-size:11px}@page{margin:3mm}}
 </style></head><body>
 <div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="vendor/supabase-js-2.45.4.js"></script>
+<script src="i18n.js"></script>
 <script>
 const SUPABASE_URL='https://tlcoxnnliwrvmnezsiqh.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsY294bm5saXdydm1uZXpzaXFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMzY1MDUsImV4cCI6MjEwNjcxMjUwNX0.KpGzlT0Uplk1gWxBgByTBXkSF693zfo0bRjYilrU2Qc';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const kes=n=>'KES '+Number(n||0).toLocaleString('en-KE');
+// ---------- Business & pricing ----------
+const BUSINESS='JOEDFRAME TECHNOLOGIES', SUPPORT_PHONE='254701252785', PAY_TO='0701 252 785';
+// Display only: limits are enforced in the database (private.plan_limit).
+const PLANS={
+ basic:{name:'Basic',m:500,f:['1 staff account','Up to 300 products','Sell, stock & debts','WhatsApp debt reminders','Daily WhatsApp summary','Download your data']},
+ standard:{name:'Standard',m:1000,f:['Up to 5 staff accounts','Unlimited products','Everything in Basic','Profit & stock value','7-day chart & top sellers']},
+ premium:{name:'Premium',m:2000,f:['Unlimited staff accounts','Unlimited products','Everything in Standard','Priority WhatsApp support','We load your stock list for you']}};
+// [months, days added, price factor, label]
+const PERIODS=[[1,30,1,'1 month'],[6,182,.9,'6 months · save 10%'],[12,365,10/12,'1 year · 2 months free']];
+const planPrice=(p,mo)=>Math.round(PLANS[p].m*mo*PERIODS.find(x=>x[0]==mo)[2]);
+const planName=p=>p=='trial'?'Free trial':(PLANS[p]||{name:p}).name;
+const reports=()=>S.role!='staff'&&S.shop.plan!='basic';
+function pricingHTML(cur){return`<div class="plans">${Object.entries(PLANS).map(([k,p])=>`<div class="card plan${k==cur?' cur':''}${k=='standard'?' pop':''}">
+ ${k=='standard'?'<em>Most popular</em>':''}<span class="pn">${p.name}</span><b>${kes(p.m)}<small>/month</small></b>
+ <small>6 months ${kes(planPrice(k,6))} · 1 year ${kes(planPrice(k,12))}</small><ul>${p.f.map(x=>`<li>${x}</li>`).join('')}</ul></div>`).join('')}</div>`}
+function payHTML(){const msg=encodeURIComponent(`Hello ${BUSINESS}, I have paid for Duka.\nShop: ${S.shop?S.shop.name:''}\nPlan (Basic/Standard/Premium): \nPeriod (1 month/6 months/1 year): \nM-Pesa code: `);
+ const stk=S.settings&&S.settings.mpesa_stk_enabled&&S.role=='owner',cur=PLANS[S.shop&&S.shop.plan]?S.shop.plan:'standard';
+ return`${stk?`<div class="card"><span class="pn">Pay now with M-Pesa</span><small>You get a prompt on your phone. Enter your M-Pesa PIN and your shop is activated straight away.</small>
+ <label class="lb">Plan</label><select id="kp" onchange="stkCalc()">${Object.entries(PLANS).map(([k,p])=>`<option value="${k}" ${k==cur?'selected':''}>${p.name}</option>`).join('')}</select>
+ <label class="lb">Period</label><select id="km" onchange="stkCalc()">${PERIODS.map(([mo,,,l])=>`<option value="${mo}">${l}</option>`).join('')}</select>
+ <label class="lb">M-Pesa phone number</label><input id="kn" type="tel" placeholder="0712345678" value="${esc(S.shop&&S.shop.phone||'')}">
+ <p><button class="p" style="width:100%" id="kb" onclick="payStk(this)">Pay</button></p></div><h3>Or pay manually</h3>`:''}
+ <div class="card"><span class="pn">How to pay</span><small>1. M-Pesa <b>Send Money</b> to <b>${PAY_TO}</b> (${BUSINESS}).<br>2. Send us the M-Pesa code on WhatsApp. We activate your shop within the hour.</small>
+ <p><a href="https://wa.me/${SUPPORT_PHONE}?text=${msg}" target="_blank" rel="noopener"><button class="p" style="width:100%">Send M-Pesa code on WhatsApp</button></a></p></div>`}
+function stkCalc(){const b=$('#kb');if(b)b.textContent=`Pay ${kes(planPrice($('#kp').value,+$('#km').value))}`}
+async function payStk(btn){const phone=$('#kn').value.trim();if(!phone)return alert('Enter your M-Pesa phone number');
+ btn.disabled=true;const old=btn.textContent;btn.textContent='Sending request…';
+ const {data,error}=await sb.functions.invoke('mpesa-stk',{body:{shop_id:S.shop.id,plan:$('#kp').value,months:+$('#km').value,phone}});
+ if(error){btn.disabled=false;btn.textContent=old;let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}return alert(m)}
+ btn.textContent='Check your phone and enter your M-Pesa PIN…';
+ for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,3000));
+  const {data:st}=await sb.rpc('my_mpesa_status',{p_checkout:data.checkout_request_id});const s=st&&st[0];
+  if(s&&s.status=='paid'){alert(`Payment received ✔ Paid until ${s.paid_until}`);closeEdit();return boot()}
+  if(s&&s.status=='failed'){btn.disabled=false;btn.textContent=old;return alert('Payment not completed: '+(s.result_desc||'cancelled'))}}
+ btn.disabled=false;btn.textContent=old;alert('We have not received confirmation yet. If you paid, your shop will be activated shortly.')}
+function showPlans(){document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>Plans</h3>
+ <p class="lb">You are on <b>${esc(planName(S.shop.plan))}</b>, paid until ${esc(S.shop.paid_until||'-')}. Paying early adds to your remaining days.</p>${pricingHTML(S.shop.plan)}${payHTML()}<p><button onclick="closeEdit()" style="width:100%">Close</button></p></div></div>`);stkCalc()}
+// ---------- Local storage helpers (never required for correctness) ----------
+function lsGet(k,json){try{const v=localStorage.getItem(k);return json?JSON.parse(v):v}catch(e){return null}}
+function lsSet(k,v){try{localStorage.setItem(k,typeof v=='string'?v:JSON.stringify(v))}catch(e){}}
+const isNet=e=>!navigator.onLine||/offline|fetch|network|load failed|timed? ?out/i.test(String(e&&e.message||e));
+try{const r=new URLSearchParams(location.search).get('ref');if(r&&/^[A-Za-z0-9]{3,12}$/.test(r))lsSet('duka:ref',r.toUpperCase())}catch(e){}
 const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 
-function authView(){app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
+function authView(){S.inApp=false;const ref=lsGet('duka:ref');app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
+${ref?`<div class="ob">Invited with code ${esc(ref)}: create an account to start your 30 days free.</div>`:''}
+<p><button class="s" onclick="setLang(LANG=='sw'?'en':'sw')">🌐 ${LANG=='sw'?'English':'Kiswahili'}</button></p>
 <input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)">
-<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p></main>`}
+<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p>
+<p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+<h3>Simple pricing</h3><p class="lb">Start with 30 days free, with all Standard features. Pay by M-Pesa. Save up to 2 months when you pay yearly.</p>${pricingHTML()}
+<p class="lb">Questions? <a href="https://wa.me/${SUPPORT_PHONE}" target="_blank" rel="noopener">WhatsApp ${PAY_TO}</a></p></main>`}
 async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;
  const r=m=='in'?await sb.auth.signInWithPassword({email:e,password:p}):await sb.auth.signUp({email:e,password:p});
  if(r.error)return alert(r.error.message);
  if(!r.data.session)return alert('Check your email to confirm, then log in.');boot()}
-function setupView(){app.innerHTML=`<main class="c"><h1>Set up your shop</h1><p>30 days free.</p>
+function setupView(){S.inApp=false;app.innerHTML=`<main class="c"><h1>Set up your shop</h1><p>30 days free.</p>
 <input id="sn" placeholder="Shop name"><input id="sp" placeholder="Shop phone (optional)"><select id="st">${TYPES.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select><p><small>Choose carefully: this decides which fields your shop sees, and only we can change it later.</small></p>
-<button class="p" onclick="createShop()">Start</button></main>`}
+<label class="lb">Referral or agent code (optional)</label><input id="sr" value="${esc(lsGet('duka:ref')||'')}" style="text-transform:uppercase">
+<button class="p" onclick="createShop()">Start</button> <button onclick="logout()">Log out</button></main>`}
 async function createShop(){const n=$('#sn').value.trim();if(!n)return alert('Enter the shop name');
- const {error}=await sb.rpc('create_shop',{p_name:n,p_phone:$('#sp').value.trim()||null,p_type:$('#st').value});
- if(error)return alert(error.message);boot()}
-function lockedView(){app.innerHTML=`<main class="c"><h1>Subscription ended</h1><p>Your access for <b>${esc(S.shop.name)}</b> has expired. Pay your monthly fee by M-Pesa and send us the code to reopen it.</p><button onclick="logout()">Log out</button></main>`}
-async function logout(){await sb.auth.signOut();S.shop=null;authView()}
+ const {error}=await sb.rpc('create_shop',{p_name:n,p_phone:$('#sp').value.trim()||null,p_type:$('#st').value,p_ref:$('#sr').value.trim()||null});
+ if(error)return alert(error.message);lsSet('duka:ref','');boot()}
+function lockedView(){S.inApp=false;
+ app.innerHTML=`<main class="c"><h1>${S.shop.plan=='trial'?'Free trial ended':'Subscription ended'}</h1><p>Choose a plan to keep using Duka for <b>${esc(S.shop.name)}</b>. Your records are safe and nothing has been deleted.</p>
+ ${S.role=='owner'?pricingHTML(S.shop.plan)+payHTML():'<p>Ask the shop owner to renew the subscription.</p>'}
+ <p class="lb">You can still download your records:</p>${S.role=='owner'?exportButtons():''}
+ ${S.members&&S.members.length>1?shopSwitcher():''}
+ <p>${S.admin?'<button onclick="loadAdmin()">Admin</button> ':''}<button onclick="logout()">Log out</button></p></main>`}
+async function logout(){await sb.auth.signOut();S.shop=null;S.members=null;authView()}
 
+// ---------- Start-up: works online, and offline from the last saved copy ----------
+const CACHE_KEYS=['members','shop','role','admin','settings','products','customers','days','sales','invites','refs'];
+function saveCache(){if(!S.uid)return;const c={};CACHE_KEYS.forEach(k=>c[k]=S[k]);lsSet('duka:cache:'+S.uid,c)}
 async function boot(){
  const {data:{session}}=await sb.auth.getSession();
  if(!session)return authView();
  if(S.rec)return recoverView();S.uid=session.user.id;
- try{await sb.rpc('claim_invites')}catch(e){}
- const {data}=await sb.from('shop_members').select('role,shops(id,name,paid_until,type)').eq('user_id',S.uid).limit(1);
- if(!data||!data.length)return setupView();
- S.shop=data[0].shops;S.role=data[0].role;
- if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
- await load();render()}
-async function load(){
+ try{
+  if(!navigator.onLine)throw new Error('offline');
+  await sb.rpc('claim_invites');
+  const [ad,st,mb]=await Promise.all([sb.rpc('am_i_admin'),sb.rpc('app_settings'),
+   sb.from('shop_members').select('role,shops(id,name,phone,paid_until,type,plan,parent_id,referral_code,kra_pin)').eq('user_id',S.uid)]);
+  if(mb.error)throw mb.error;
+  S.admin=ad.data===true;S.settings=st.data||{};
+  S.members=(mb.data||[]).filter(m=>m.shops).sort((a,b)=>(a.shops.parent_id?1:0)-(b.shops.parent_id?1:0)||a.shops.name.localeCompare(b.shops.name));
+  if(!S.members.length)return S.admin?loadAdmin():setupView();
+  const want=lsGet('duka:shop:'+S.uid),m=S.members.find(x=>x.shops.id==want)||S.members[0];
+  S.shop={...m.shops};S.role=m.role;
+  const {data:b,error:be}=await sb.rpc('shop_billing',{p_shop:S.shop.id});if(be)throw be;
+  if(b&&b[0])Object.assign(S.shop,{plan:b[0].plan,paid_until:b[0].paid_until,is_branch:b[0].is_branch,main_shop:b[0].main_shop,branches:+b[0].branches});
+  if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
+  await load();S.offline=false;saveCache();
+ }catch(e){
+  const c=lsGet('duka:cache:'+S.uid,true);
+  if(!isNet(e))return alert(e.message||e);
+  if(!c||!c.shop){S.inApp=false;app.innerHTML=`<main class="c"><h1>Duka</h1><p>You are offline. Connect to the internet once to load your shop, then Duka keeps working offline.</p><button class="p" onclick="boot()">Try again</button></main>`;return}
+  CACHE_KEYS.forEach(k=>S[k]=c[k]);S.offline=true;
+ }
+ render();syncQueue()}
+async function load(){const sid=S.shop.id;
  const [p,c,d,sl,si]=await Promise.all([
-  sb.from('products').select('*').eq('active',true).order('name'),
-  sb.from('customer_balances').select('*').order('name'),
-  sb.from('daily_summary').select('*').order('day',{ascending:false}).limit(7),
-  sb.from('sales').select('id,created_at,total,paid,method,voided,sale_items(name,qty,unit_price,unit_cost)').gte('created_at',new Date(Date.now()-7*864e5).toISOString()).order('created_at',{ascending:false}).limit(300),
-  sb.from('staff_invites').select('*').order('created_at')]);
- S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[];S.invites=si.data||[]}
+  sb.from('products').select('*').eq('shop_id',sid).eq('active',true).order('name'),
+  sb.from('customer_balances').select('*').eq('shop_id',sid).order('name'),
+  sb.from('daily_summary').select('*').eq('shop_id',sid).order('day',{ascending:false}).limit(7),
+  sb.from('sales').select('id,created_at,total,paid,method,mpesa_code,customer_id,voided,sale_items(id,name,qty,unit_price,unit_cost)').eq('shop_id',sid).gte('created_at',new Date(Date.now()-7*864e5).toISOString()).order('created_at',{ascending:false}).limit(300),
+  S.role=='owner'?sb.from('staff_invites').select('*').eq('shop_id',sid).order('created_at'):Promise.resolve({data:[]})]);
+ const err=[p,c,d,sl,si].find(r=>r.error);if(err)throw err.error;
+ S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[];S.invites=si.data||[];
+ if(S.role=='owner'&&!S.shop.is_branch){const {data:r}=await sb.rpc('my_referrals',{p_shop:sid});S.refs=r&&r[0]||{signed_up:0,rewarded:0}}
+ // Show sales still waiting to sync so the shop sees what it sold offline.
+ const pend=queue().filter(x=>x.sale.shop_id==sid&&!S.sales.some(s=>s.id==x.sale.id));
+ S.sales=[...pend.map(x=>({...x.sale,voided:false,sale_items:x.items,pending:true})),...S.sales]}
+
+// ---------- Offline sales queue ----------
+const QK=()=>'duka:queue:'+S.uid;
+const queue=()=>lsGet(QK(),true)||[];
+const setQueue=q=>lsSet(QK(),q);
+// Ids are created on the phone, so retrying after a dropped connection never makes a duplicate.
+async function pushSale(x){let r=await sb.from('sales').insert(x.sale);if(r.error&&r.error.code!='23505')throw r.error;
+ r=await sb.from('sale_items').insert(x.items);if(r.error&&r.error.code!='23505')throw r.error}
+let syncing=false;
+async function syncQueue(){if(syncing||!navigator.onLine||!S.uid)return;let q=queue();if(!q.length)return;syncing=true;let sent=0;
+ try{while(q.length){try{await pushSale(q[0])}catch(e){if(!isNet(e)){q[0].error=String(e.message||e);setQueue(q)}break}
+  q.shift();setQueue(q);sent++}}
+ finally{syncing=false}
+ if(sent&&S.inApp&&S.shop){try{await load();S.offline=false;saveCache()}catch(e){}render()}else if(S.inApp)render()}
+addEventListener('online',()=>{S.offline=false;syncQueue();if(S.inApp)boot()});
+addEventListener('offline',()=>{S.offline=true;if(S.inApp)render()});
+setInterval(syncQueue,60000);
+function statusBar(){const q=queue(),err=q.find(x=>x.error);if(!S.offline&&!q.length)return'';
+ return`<div class="ob${err?' err':''}"><span>${S.offline?'📴 Offline. Sales are saved on this phone.':'Online'}${q.length?` · ${q.length} sale(s) waiting to sync`:''}${err?`<br><small>Sync problem: ${esc(err.error)}</small>`:''}</span>${q.length&&navigator.onLine?'<button class="s" onclick="syncQueue()">Sync now</button>':''}</div>`}
+
+// ---------- Branches (Premium) ----------
+function shopSwitcher(){return`<label class="lb">Shop</label><select onchange="switchShop(this.value)">${S.members.map(m=>`<option value="${m.shops.id}" ${m.shops.id==S.shop.id?'selected':''}>${esc(m.shops.name)}${m.shops.parent_id?' (branch)':''}</option>`).join('')}</select>`}
+function switchShop(id){lsSet('duka:shop:'+S.uid,id);S.tab='sell';S.cart={};boot()}
+async function addBranch(){const n=(prompt('Name of the new branch')||'').trim();if(!n)return;
+ const {data,error}=await sb.rpc('create_shop',{p_name:n,p_type:S.shop.type,p_parent:S.shop.id});
+ if(error)return alert(error.message);switchShop(data)}
+async function editKra(){const v=prompt('KRA PIN (e.g. P051234567X). Leave empty to remove.',S.shop.kra_pin||'');if(v===null)return;
+ const pin=v.trim().toUpperCase();if(pin&&!/^[A-Z]\d{9}[A-Z]$/.test(pin))return alert('A KRA PIN looks like P051234567X');
+ const {error}=await sb.from('shops').update({kra_pin:pin||null}).eq('id',S.shop.id);if(error)return alert(error.message);
+ S.shop.kra_pin=pin||null;const m=S.members.find(x=>x.shops.id==S.shop.id);if(m)m.shops.kra_pin=S.shop.kra_pin;saveCache();render()}
+function referralCard(){if(S.role!='owner'||S.shop.is_branch||!S.shop.referral_code)return'';const code=S.shop.referral_code,r=S.refs||{};
+ const link=location.origin+location.pathname+'?ref='+code;
+ const msg=encodeURIComponent(`I use Duka to track sales, stock and debts in my shop. Try it free for 30 days: ${link} (code ${code})`);
+ return`<h3>Invite a shop, get a free month</h3><div class="card"><span class="pn">Your code: ${esc(code)}</span><small>When a shop you invite pays for the first time, you get 1 month free. ${r.signed_up||0} joined · ${r.rewarded||0} free month(s) earned.</small>
+ <p><a href="https://wa.me/?text=${msg}" target="_blank" rel="noopener"><button class="s">Share on WhatsApp</button></a></p></div>`}
 
 const TABS={sell:'Sell',stock:'Stock',debts:'Debts',today:'Today'};
-function go(t){S.tab=t;render()}
-function render(){app.innerHTML=`<main>${VIEWS[S.tab]()}</main><nav>${Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]}</button>`).join('')}</nav>`}
+function go(t){if(t=='admin')return loadAdmin();S.tab=t;render()}
+function render(){S.inApp=true;if(S.tab=='admin'&&!S.adm)S.tab='today';
+ const tabs=Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).concat(S.admin&&!S.offline?['admin']:[]);
+ app.innerHTML=`<main>${statusBar()}${VIEWS[S.tab]()}</main><nav>${tabs.map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]||'Admin'}</button>`).join('')}</nav>`}
 const VIEWS={
  sell:()=>`<input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
  stock:()=>`<h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?'<input id="sk" placeholder="SKU / barcode (optional)">':''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
@@ -95,13 +226,16 @@ const VIEWS={
   ${S.products.map(p=>`<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · <span class="${p.stock_qty<=p.low_stock_at?'low':''}">${p.stock_qty} ${esc(p.unit)} left</span> · reorder at ${p.low_stock_at}${meta(p)}</small></div><div><button class="s" onclick="restock('${p.id}')">+ Stock</button> <button class="s" onclick="editProduct('${p.id}')">Edit</button></div></div>`).join('')||'<p>No products yet.</p>'}`,
  debts:()=>{const d=S.customers.filter(c=>c.balance>0);return`<h3>Add customer</h3><input id="cn" placeholder="Name"><input id="cp" placeholder="Phone e.g. 0712345678">
   <button class="p" onclick="addCustomer()">Save customer</button><h3>Who owes you (${kes(d.reduce((a,c)=>a+Number(c.balance),0))})</h3>
-  ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank"><button class="s">Remind</button></a>`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
- today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
+  ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank" rel="noopener"><button class="s">Remind</button></a>${S.settings&&S.settings.sms_enabled?` <button class="s" onclick="sendSms('${c.customer_id}',this)">SMS</button>`:''}`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
+ today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`${S.members&&S.members.length>1?shopSwitcher():''}<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
   <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
-  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${S.role=='staff'?'':`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${S.role=='staff'?'':`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${S.role=='staff'?'':chart7()+topSellers()}${recent()}
+  <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${reports()?`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`:''}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${reports()?`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`:''}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${reports()?chart7()+topSellers():(S.role=='owner'?`<div class="card" style="margin-top:12px"><span class="pn">See your profit, stock value and best sellers</span><small>Included in Standard and Premium.</small><p><button class="s" onclick="showPlans()">Upgrade</button></p></div>`:'')}${recent()}
   <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
   ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}
-  ${staffView()}<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
+  ${staffView()}${referralCard()}${S.role=='owner'?'<h3>Download your data</h3>'+exportButtons():''}${S.role=='owner'?`<h3>Plan</h3><div class="row"><div>${esc(planName(S.shop.plan))}${S.shop.is_branch?' (from main shop)':''}<small class="${S.shop.paid_until&&S.shop.paid_until<=soon(5)?'low':''}">Paid until ${esc(S.shop.paid_until||'-')}</small></div>${S.shop.is_branch?'':'<button class="s" onclick="showPlans()">Renew / upgrade</button>'}</div>`:`<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p>`}
+  ${S.role=='owner'?`<h3>Shop details</h3><div class="row"><div>KRA PIN<small>${esc(S.shop.kra_pin||'Not set. It is printed on receipts.')}</small></div><button class="s" onclick="editKra()">Edit</button></div>
+  ${S.shop.plan=='premium'&&!S.shop.is_branch?`<div class="row"><div>Branches<small>${S.shop.branches||0} of 2 extra shops used</small></div>${(S.shop.branches||0)<2?'<button class="s" onclick="addBranch()">Add branch</button>':''}</div>`:''}`:''}
+  <p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><div class="tools"><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button><button class="s" onclick="setLang(LANG=='sw'?'en':'sw')">🌐 ${LANG=='sw'?'English':'Kiswahili'}</button><a href="https://wa.me/${SUPPORT_PHONE}" target="_blank" rel="noopener"><button class="s">💬 Help</button></a></div><button onclick="logout()">Log out</button>`}};
 
 function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
  `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
@@ -120,11 +254,39 @@ async function checkout(){
  if(S.method=='debt'){if(!S.cust)return alert('Choose a customer');
   const a=prompt('Amount paid now (0 if none)','0');if(a===null)return;paid=Math.min(t,Math.max(0,+a||0))}
  if(S.method=='mpesa')code=(prompt('M-Pesa code (optional)')||'').toUpperCase()||null;
- const {data:s,error}=await sb.from('sales').insert({shop_id:S.shop.id,customer_id:S.method=='debt'?S.cust:null,total:t,paid,method:S.method,mpesa_code:code,created_by:S.uid}).select().single();
- if(error)return alert(error.message);
- const r=await sb.from('sale_items').insert(items.map(({p,q})=>({sale_id:s.id,shop_id:S.shop.id,product_id:p.id,name:p.name+(p.variant?' · '+p.variant:''),qty:q,unit_price:price(p),unit_cost:p.buy_price})));
- if(r.error)return alert(r.error.message);
- S.cart={};S.pr={};S.cust='';S.q='';await load();render();alert('Sale saved ✔')}
+ const sid=crypto.randomUUID();
+ const sale={id:sid,shop_id:S.shop.id,customer_id:S.method=='debt'?S.cust:null,total:t,paid,method:S.method,mpesa_code:code,created_by:S.uid,created_at:new Date().toISOString()};
+ const rows=items.map(({p,q})=>({id:crypto.randomUUID(),sale_id:sid,shop_id:S.shop.id,product_id:p.id,name:p.name+(p.variant?' · '+p.variant:''),qty:q,unit_price:price(p),unit_cost:p.buy_price}));
+ const x={sale,items:rows};let queued=false;
+ try{if(!navigator.onLine)throw new Error('offline');await pushSale(x)}
+ catch(e){if(!isNet(e))return alert(e.message||e);setQueue([...queue(),x]);queued=true;S.offline=!navigator.onLine}
+ S.cart={};S.pr={};S.cust='';S.q='';
+ if(queued){items.forEach(({p,q})=>p.stock_qty=+p.stock_qty-q);S.sales.unshift({...sale,voided:false,sale_items:rows,pending:true});saveCache()}
+ else{try{await load();saveCache()}catch(e){}}
+ render();showReceipt({...sale,voided:false,sale_items:rows,pending:queued})}
+
+// ---------- Receipts ----------
+function receiptLines(s){const c=s.customer_id&&S.customers.find(x=>x.customer_id==s.customer_id),d=new Date(s.created_at);
+ return{c,no:String(s.id).slice(0,8).toUpperCase(),when:d.toLocaleString('en-KE',{timeZone:'Africa/Nairobi',dateStyle:'medium',timeStyle:'short'}),items:s.sale_items||[]}}
+function receiptText(s){const r=receiptLines(s),L=[S.shop.name,S.shop.kra_pin?'KRA PIN: '+S.shop.kra_pin:'',r.when+' · Receipt '+r.no,'----'];
+ r.items.forEach(i=>L.push(`${i.name} x${+i.qty} @ ${kes(i.unit_price)} = ${kes(i.qty*i.unit_price)}`));
+ L.push('----','TOTAL: '+kes(s.total),'Paid: '+kes(s.paid)+' ('+(s.method=='mpesa'?'M-Pesa':s.method)+')');
+ if(+s.total>+s.paid)L.push('Balance: '+kes(s.total-s.paid));if(s.mpesa_code)L.push('M-Pesa: '+s.mpesa_code);if(s.voided)L.push('*** VOIDED ***');
+ L.push('','Asante! Thank you.');return L.filter((x,i)=>x!==''||i>3).join('\n')}
+function showReceipt(s){const r=receiptLines(s),ph=r.c&&r.c.phone?(r.c.phone.replace(/\D/g,'').replace(/^0/,'254')):'';
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>${s.pending?'Sale saved on this phone ✔':'Sale saved ✔'}</h3>${s.pending?'<p class="lb">You are offline. It will sync automatically when you are back online.</p>':''}
+ <div class="rc" id="rcpt" data-nt><h4>${esc(S.shop.name)}</h4>${S.shop.phone?`<div class="c">${esc(S.shop.phone)}</div>`:''}${S.shop.kra_pin?`<div class="c">KRA PIN: ${esc(S.shop.kra_pin)}</div>`:''}
+ <div class="c">${esc(r.when)} · No. ${esc(r.no)}</div><hr>
+ ${r.items.map(i=>`<div>${esc(i.name)}</div><div class="l"><span>${+i.qty} × ${kes(i.unit_price)}</span><span>${kes(i.qty*i.unit_price)}</span></div>`).join('')}<hr>
+ <div class="l t"><span>TOTAL</span><span>${kes(s.total)}</span></div><div class="l"><span>Paid (${s.method=='mpesa'?'M-Pesa':esc(s.method)})</span><span>${kes(s.paid)}</span></div>
+ ${+s.total>+s.paid?`<div class="l"><span>Balance</span><span>${kes(s.total-s.paid)}</span></div>`:''}${s.mpesa_code?`<div class="l"><span>M-Pesa code</span><span>${esc(s.mpesa_code)}</span></div>`:''}
+ ${r.c?`<div class="l"><span>Customer</span><span>${esc(r.c.name)}</span></div>`:''}${s.voided?'<div class="c t">*** VOIDED ***</div>':''}<hr><div class="c">Asante! Thank you.</div></div>
+ <div class="m"><button onclick="window.print()">🖨 Print</button><a style="flex:1" href="https://wa.me/${ph}?text=${encodeURIComponent(receiptText(s))}" target="_blank" rel="noopener"><button style="width:100%">WhatsApp</button></a><button class="p" onclick="closeEdit()">Close</button></div></div></div>`)}
+async function sendSms(id,btn){if(S.shop.plan!='premium'){alert('SMS reminders are part of the Premium plan.');return showPlans()}
+ if(!confirm('Send an SMS reminder to this customer?'))return;btn.disabled=true;
+ const {error}=await sb.functions.invoke('send-sms',{body:{shop_id:S.shop.id,customer_id:id}});btn.disabled=false;
+ if(error){let m=error.message;try{m=(await error.context.json()).error||m}catch(e){}return alert(m)}alert('SMS sent ✔')}
 
 async function addProduct(){const v=i=>{const e=$('#'+i);return e?e.value.trim():''};if(!v('pn'))return alert('Enter a name');
  const {error}=await sb.from('products').insert({shop_id:S.shop.id,name:v('pn'),buy_price:+v('pb')||0,sell_price:+v('ps')||0,stock_qty:+v('pq')||0,unit:v('pu'),category:v('pc')||null,variant:v('pv')||null,sku:v('sk')||null,expiry:v('px')||null,low_stock_at:v('pr')===''?5:(+v('pr')||0)});
@@ -167,8 +329,6 @@ const price=p=>S.pr[p.id]??p.sell_price;
 function setPrice(id){const p=S.products.find(x=>x.id==id),v=parseFloat(prompt('Price per '+p.unit+' for this sale (normal: '+p.sell_price+')',price(p)));
  if(!(v>=0))return;if(v<p.buy_price&&!confirm('Below your buying price ('+p.buy_price+'). Sell at a loss?'))return;
  S.pr[p.id]=v;$('#cart').innerHTML=cartView()}
-async function setType(t){const {error}=await sb.from('shops').update({type:t}).eq('id',S.shop.id);
- if(error)return alert(error.message);S.shop.type=t;render()}
 
 const soon=d=>new Date(Date.now()+d*864e5).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 const meta=p=>(cfg().sku&&p.sku?' · '+esc(p.sku):'')+(cfg().exp&&p.expiry?` · <span class="${p.expiry<=soon(30)?'ex':''}">exp ${p.expiry}</span>`:'');
@@ -204,7 +364,7 @@ function payMix(){const td=today(),x={cash:0,mpesa:0,debt:0};
  S.sales.filter(s=>!s.voided&&new Date(s.created_at).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})==td).forEach(s=>{if(s.method in x)x[s.method]+= +s.total});
  const T=x.cash+x.mpesa+x.debt;if(!T)return'';const pc=k=>Math.round(x[k]/T*100);
  return`<h3>Today by payment</h3><div class="mix"><i style="width:${pc('cash')}%;background:var(--accent)"></i><i style="width:${pc('mpesa')}%;background:#8fb996"></i><i style="width:${pc('debt')}%;background:var(--rose)"></i></div><p class="lb">Cash ${kes(x.cash)} · M-Pesa ${kes(x.mpesa)} · Debt ${kes(x.debt)}</p>`}
-function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,8).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}${s.voided?' · VOIDED':''}</small></div><div><b>${s.voided?'<s>'+kes(s.total)+'</s>':kes(s.total)}</b>${s.voided?'':` <button class="s" onclick="voidSale('${s.id}')">Void</button>`}</div></div>`).join('')}`:''}
+function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,8).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}${s.voided?' · VOIDED':''}${s.pending?' · <span class="pend">waiting to sync</span>':''}</small></div><div><b>${s.voided?'<s>'+kes(s.total)+'</s>':kes(s.total)}</b> <button class="s" onclick="showReceipt(S.sales.find(x=>x.id=='${s.id}'))">Receipt</button>${s.voided||s.pending?'':` <button class="s" onclick="voidSale('${s.id}')">Void</button>`}</div></div>`).join('')}`:''}
 
 function editProduct(id){
  const p=S.products.find(x=>x.id==id),c=cfg();
@@ -274,12 +434,98 @@ function summaryText(){const td=today(),t=S.days.find(d=>d.day==td)||{};
  const top=Object.entries(m).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,q])=>n+' x'+q).join(', ');
  const low=S.products.filter(p=>p.stock_qty<=p.low_stock_at).map(p=>p.name+' ('+p.stock_qty+')');
  const L=['*'+S.shop.name+' - '+td+'*','Sales: '+kes(t.sales_total)+' ('+ts.length+' sales)','Cash '+kes(by.cash)+' | M-Pesa '+kes(by.mpesa)+' | Debt '+kes(by.debt)];
- if(S.role!='staff')L.push('Profit (est.): '+kes(t.profit_estimate));
+ if(reports())L.push('Profit (est.): '+kes(t.profit_estimate));
  if(top)L.push('Top: '+top);
  L.push('Owed to you: '+kes(owed())+' ('+debtors()+' customers)');
  if(low.length)L.push('Running low: '+low.slice(0,8).join(', '));
  return L.join('\n')}
 function shareSummary(){window.open('https://wa.me/?text='+encodeURIComponent(summaryText()),'_blank')}
+
+// ---------- CSV export (owners) ----------
+// Prefix cells that Excel would treat as formulas (CSV injection), then quote when needed.
+const csvCell=v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return/[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function download(name,rows){
+ const blob=new Blob(['﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+async function fetchAll(build){const out=[];
+ for(let from=0;;from+=1000){const {data,error}=await build().range(from,from+999);if(error)throw error;out.push(...data);if(data.length<1000)return out}}
+function exportButtons(){return`<div class="m"><button class="s" onclick="exportData('sales',this)">Sales</button><button class="s" onclick="exportData('stock',this)">Stock</button><button class="s" onclick="exportData('customers',this)">Customers</button></div>`}
+async function exportData(kind,btn){
+ const label=btn.textContent;btn.disabled=true;btn.textContent='…';
+ try{
+  const sid=S.shop.id,file=`${S.shop.name.replace(/[^\w-]+/g,'_')}-${kind}-${today()}.csv`;
+  const dt=t=>new Date(t).toLocaleString('en-CA',{timeZone:'Africa/Nairobi',hour12:false}).replace(',','');
+  if(kind=='sales'){
+   const [sales,custs]=await Promise.all([
+    fetchAll(()=>sb.from('sales').select('id,created_at,total,paid,method,mpesa_code,voided,customer_id,sale_items(name,qty,unit_price,unit_cost)').eq('shop_id',sid).order('created_at')),
+    fetchAll(()=>sb.from('customer_balances').select('customer_id,name').eq('shop_id',sid))]);
+   const cn=Object.fromEntries(custs.map(c=>[c.customer_id,c.name]));
+   download(file,[['Date & time','Item','Qty','Unit price','Line total','Unit cost','Payment','M-Pesa code','Customer','Sale total','Paid','Voided'],
+    ...sales.flatMap(s=>(s.sale_items.length?s.sale_items:[{}]).map(i=>[dt(s.created_at),i.name,i.qty,i.unit_price,i.qty*i.unit_price||'',i.unit_cost,s.method,s.mpesa_code,cn[s.customer_id]||'',s.total,s.paid,s.voided?'yes':'']))]);
+  }else if(kind=='stock'){
+   const p=await fetchAll(()=>sb.from('products').select('name,variant,category,sku,unit,buy_price,sell_price,stock_qty,low_stock_at,expiry,active').eq('shop_id',sid).order('name'));
+   download(file,[['Name','Variant','Category','SKU','Unit','Buy price','Sell price','In stock','Reorder at','Expiry','Active'],
+    ...p.map(x=>[x.name,x.variant,x.category,x.sku,x.unit,x.buy_price,x.sell_price,x.stock_qty,x.low_stock_at,x.expiry,x.active?'yes':'no'])]);
+  }else{
+   const c=await fetchAll(()=>sb.from('customer_balances').select('name,phone,balance').eq('shop_id',sid).order('name'));
+   download(file,[['Name','Phone','Balance owed'],...c.map(x=>[x.name,x.phone,x.balance])]);
+  }
+ }catch(e){alert('Download failed: '+(e.message||e))}
+ finally{btn.disabled=false;btn.textContent=label}}
+
+// ---------- Platform admin (only for accounts in private.admins) ----------
+async function loadAdmin(){const [l,rv,ag]=await Promise.all([sb.rpc('admin_list_shops'),sb.rpc('admin_revenue'),sb.rpc('admin_list_agents')]);
+ if(l.error)return alert(l.error.message);S.adm=l.data||[];S.rev=rv.data||[];S.agents=ag.data||[];const locked=!S.shop||(S.shop.paid_until&&S.shop.paid_until<today());
+ if(locked)app.innerHTML=`<main>${VIEWS.admin()}<p>${S.shop?'<button onclick="boot()">Back</button> ':''}<button onclick="logout()">Log out</button></p></main>`;
+ else{S.tab='admin';render()}}
+VIEWS.admin=()=>{const td=today(),main=S.adm.filter(s=>!s.parent_id),live=main.filter(s=>!s.paid_until||s.paid_until>=td);
+ const n=k=>live.filter(s=>s.plan==k).length,mrr=['basic','standard','premium'].reduce((a,k)=>a+n(k)*PLANS[k].m,0);
+ const mo=td.slice(0,7),thisMonth=(S.rev.find(r=>r.month==mo)||{}).amount||0;
+ return`<h3>Admin</h3><div class="g"><div class="card">Paying shops<b>${n('basic')+n('standard')+n('premium')}</b><small>${n('basic')} Basic · ${n('standard')} Standard · ${n('premium')} Premium</small></div>
+ <div class="card">On trial<b>${n('trial')}</b><small>${main.length-live.length} expired · ${S.adm.length-main.length} branch(es)</small></div>
+ <div class="card">Monthly value<b>${kes(mrr)}</b><small>active plans at monthly price</small></div>
+ <div class="card">Collected ${mo}<b>${kes(thisMonth)}</b><small>${S.rev.slice(1,4).map(r=>esc(r.month)+': '+kes(r.amount)).join('<br>')||'no earlier months'}</small></div></div>
+ <h3>Shops (${S.adm.length})</h3><input placeholder="Search shop, owner email, phone or agent" value="${esc(S.aq||'')}" oninput="S.aq=this.value;$('#al').innerHTML=adminList()"><div id="al">${adminList()}</div>
+ <h3>Sales agents</h3><p class="lb">Agents sign up shops with their code. Commission is worked out from what their shops have paid.</p>
+ ${S.agents.map(a=>`<div class="row"><div>${esc(a.name)} · <b>${esc(a.code)}</b>${a.active?'':' (inactive)'}<small>${esc(a.phone||'')} · ${a.signups} signed up · ${a.paying} paying · revenue ${kes(a.revenue)}</small><small>Commission ${+a.commission_pct}%: <b>${kes(a.commission)}</b></small></div><button class="s" onclick="adminAgent('${esc(a.code)}')">Edit</button></div>`).join('')||'<p>No agents yet.</p>'}
+ <button class="p" onclick="adminAgent()">+ Add agent</button>`};
+async function adminAgent(code){const a=S.agents.find(x=>x.code==code)||{commission_pct:20,active:true};
+ const c=code||(prompt('Agent code (letters/numbers, e.g. KIP01). Shops type this when signing up.')||'').trim().toUpperCase();if(!c)return;
+ if(!/^[A-Z0-9]{3,12}$/.test(c))return alert('Use 3 to 12 letters or numbers');
+ const name=prompt('Agent name',a.name||'');if(!name)return;const phone=prompt('Agent phone',a.phone||'');if(phone===null)return;
+ const pct=prompt('Commission % of what their shops pay',a.commission_pct);if(pct===null)return;
+ const active=code?confirm('Keep this agent active? (OK = active, Cancel = inactive)'):true;
+ const {error}=await sb.rpc('admin_save_agent',{p_code:c,p_name:name.trim(),p_phone:phone.trim()||null,p_commission:+pct||0,p_active:active});
+ if(error)return alert(error.message);loadAdmin()}
+function adminList(){const q=(S.aq||'').toLowerCase(),td=today(),typ=t=>(TYPES.find(x=>x[0]==t)||[0,t])[1];
+ return S.adm.filter(s=>[s.name,s.owner_email,s.phone,s.agent_code,s.referred_by].join(' ').toLowerCase().includes(q)).map(s=>{const ex=s.paid_until&&s.paid_until<td,par=s.parent_id&&S.adm.find(x=>x.id==s.parent_id);
+  return`<div class="row"><div>${esc(s.name)} · <b>${esc(planName(s.plan))}</b><small>${esc(s.owner_email||'no owner')}${s.phone?' · '+esc(s.phone):''} · ${esc(typ(s.type))} · ${s.members} user(s) · ${s.products} products</small>
+  ${par||s.agent_code||s.referred_by?`<small>${par?'Branch of '+esc(par.name):''}${s.agent_code?' Agent '+esc(s.agent_code):''}${s.referred_by?' Referred by '+esc(s.referred_by):''}</small>`:''}
+  <small><span class="${ex?'low':''}">${ex?'EXPIRED ':'Paid until '}${esc(s.paid_until||'-')}</span> · 30 days: ${kes(s.sales_30d)}${s.last_sale?' · last sale '+esc(String(s.last_sale).slice(0,10)):''}</small></div>
+  <div><button class="s" onclick="adminPay('${s.id}')">+ Payment</button> <button class="s" onclick="adminType('${s.id}')">Type</button></div></div>`}).join('')||'<p>No shops match.</p>'}
+function adminPay(id){const s=S.adm.find(x=>x.id==id),cur=PLANS[s.plan]?s.plan:'standard';
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>Record payment · ${esc(s.name)}</h3><p class="lb">Now: ${esc(planName(s.plan))}, paid until ${esc(s.paid_until||'-')}</p>
+ <label class="lb">Plan</label><select id="ap" onchange="apCalc()">${Object.entries(PLANS).map(([k,p])=>`<option value="${k}" ${k==cur?'selected':''}>${p.name} · ${kes(p.m)}/month</option>`).join('')}</select>
+ <label class="lb">Period</label><select id="ad" onchange="apCalc()">${PERIODS.map(([mo,,,l])=>`<option value="${mo}">${l}</option>`).join('')}</select>
+ <label class="lb">Amount received (KES)</label><input id="aa" type="number" step="any"><small class="lb" id="ah"></small>
+ <label class="lb">M-Pesa code</label><input id="ac" placeholder="e.g. SKL2ABC123" style="text-transform:uppercase">
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="adminPaySave('${s.id}',this)">Save payment</button></div></div></div>`);apCalc()}
+function apCalc(){const p=$('#ap').value,mo=+$('#ad').value,v=planPrice(p,mo);$('#aa').value=v;
+ $('#ah').textContent=mo>1?`List price ${kes(v)} (normally ${kes(PLANS[p].m*mo)})`:''}
+async function adminPaySave(id,btn){const mo=+$('#ad').value,code=$('#ac').value.trim(),amt=+$('#aa').value;
+ if(!code&&!confirm('No M-Pesa code entered. Save anyway?'))return;btn.disabled=true;
+ const {data,error}=await sb.rpc('admin_extend_shop',{p_shop:id,p_days:PERIODS.find(x=>x[0]==mo)[1],p_amount:amt>0?amt:null,p_mpesa_code:code||null,p_plan:$('#ap').value});
+ if(error){btn.disabled=false;return alert(error.message)}closeEdit();alert('Saved. Paid until '+data);loadAdmin()}
+async function adminType(id){const s=S.adm.find(x=>x.id==id);
+ const t=prompt('Shop type: '+TYPES.map(x=>x[0]).join(', '),s.type);if(t===null||t.trim()==s.type)return;
+ const {error}=await sb.rpc('admin_set_shop_type',{p_shop:id,p_type:t.trim().toLowerCase()});if(error)return alert(error.message);loadAdmin()}
+
+// Actions that change records other than sales need the internet; sales work offline.
+['addProduct','restock','addCustomer','payDebt','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
+ .forEach(n=>{const f=window[n];if(typeof f!='function')return;window[n]=function(...a){if(!navigator.onLine)return alert('You are offline. This needs internet. Selling still works offline.');return f.apply(this,a)}});
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
 boot();
 </script></body></html>

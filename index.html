@@ -40,19 +40,22 @@ h1,a{color:var(--accent)}
 .sheet h3{margin-top:4px}
 </style></head><body>
 <div id="app"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="vendor/supabase-js-2.45.4.js"></script>
 <script>
 const SUPABASE_URL='https://tlcoxnnliwrvmnezsiqh.supabase.co', SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRsY294bm5saXdydm1uZXpzaXFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExMzY1MDUsImV4cCI6MjEwNjcxMjUwNX0.KpGzlT0Uplk1gWxBgByTBXkSF693zfo0bRjYilrU2Qc';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const $=s=>document.querySelector(s), app=$('#app');
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const kes=n=>'KES '+Number(n||0).toLocaleString('en-KE');
+// Support WhatsApp number shown to shops whose subscription ended, e.g. '254712345678'. Empty = hidden.
+const SUPPORT_PHONE='';
 const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 
 function authView(){app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
 <input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)">
-<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p></main>`}
+<button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p>
+<p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p></main>`}
 async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;
  const r=m=='in'?await sb.auth.signInWithPassword({email:e,password:p}):await sb.auth.signUp({email:e,password:p});
  if(r.error)return alert(r.error.message);
@@ -63,7 +66,11 @@ function setupView(){app.innerHTML=`<main class="c"><h1>Set up your shop</h1><p>
 async function createShop(){const n=$('#sn').value.trim();if(!n)return alert('Enter the shop name');
  const {error}=await sb.rpc('create_shop',{p_name:n,p_phone:$('#sp').value.trim()||null,p_type:$('#st').value});
  if(error)return alert(error.message);boot()}
-function lockedView(){app.innerHTML=`<main class="c"><h1>Subscription ended</h1><p>Your access for <b>${esc(S.shop.name)}</b> has expired. Pay your monthly fee by M-Pesa and send us the code to reopen it.</p><button onclick="logout()">Log out</button></main>`}
+function lockedView(){const msg=encodeURIComponent(`Hello, I want to renew Duka for ${S.shop.name}. My M-Pesa code is: `);
+ app.innerHTML=`<main class="c"><h1>Subscription ended</h1><p>Your access for <b>${esc(S.shop.name)}</b> has expired. Pay your monthly fee by M-Pesa and send us the code to reopen it.</p>
+ ${SUPPORT_PHONE?`<p><a href="https://wa.me/${SUPPORT_PHONE}?text=${msg}" target="_blank" rel="noopener"><button class="p">Send M-Pesa code on WhatsApp</button></a></p>`:''}
+ <p class="lb">Your records are safe. You can still download them:</p>${S.role=='owner'?exportButtons():''}
+ <p>${S.admin?'<button onclick="loadAdmin()">Admin</button> ':''}<button onclick="logout()">Log out</button></p></main>`}
 async function logout(){await sb.auth.signOut();S.shop=null;authView()}
 
 async function boot(){
@@ -71,8 +78,9 @@ async function boot(){
  if(!session)return authView();
  if(S.rec)return recoverView();S.uid=session.user.id;
  try{await sb.rpc('claim_invites')}catch(e){}
+ try{S.admin=(await sb.rpc('am_i_admin')).data===true}catch(e){S.admin=false}
  const {data}=await sb.from('shop_members').select('role,shops(id,name,paid_until,type)').eq('user_id',S.uid).limit(1);
- if(!data||!data.length)return setupView();
+ if(!data||!data.length)return S.admin?loadAdmin():setupView();
  S.shop=data[0].shops;S.role=data[0].role;
  if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
  await load();render()}
@@ -86,8 +94,9 @@ async function load(){
  S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[];S.invites=si.data||[]}
 
 const TABS={sell:'Sell',stock:'Stock',debts:'Debts',today:'Today'};
-function go(t){S.tab=t;render()}
-function render(){app.innerHTML=`<main>${VIEWS[S.tab]()}</main><nav>${Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]}</button>`).join('')}</nav>`}
+function go(t){if(t=='admin')return loadAdmin();S.tab=t;render()}
+function render(){const tabs=Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).concat(S.admin?['admin']:[]);
+ app.innerHTML=`<main>${VIEWS[S.tab]()}</main><nav>${tabs.map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]||'Admin'}</button>`).join('')}</nav>`}
 const VIEWS={
  sell:()=>`<input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
  stock:()=>`<h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?'<input id="sk" placeholder="SKU / barcode (optional)">':''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
@@ -101,7 +110,7 @@ const VIEWS={
   <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${S.role=='staff'?'':`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${S.role=='staff'?'':`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${S.role=='staff'?'':chart7()+topSellers()}${recent()}
   <h3>Running low</h3>${low.map(p=>`<div class="row">${pn(p)}<span class="low">${p.stock_qty} ${esc(p.unit)} left</span></div>`).join('')||'<p>Nothing low.</p>'}
   ${cfg().exp&&S.products.some(p=>p.expiry)?`<h3>Expiry watch (30 days)</h3>${S.products.filter(p=>p.expiry&&p.expiry<=soon(30)).sort((a,b)=>a.expiry<b.expiry?-1:1).map(p=>`<div class="row">${pn(p)}<span class="ex">${p.expiry<=today()?'EXPIRED ':''}${p.expiry}</span></div>`).join('')||'<p>Nothing expiring soon.</p>'}`:''}
-  ${staffView()}<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
+  ${staffView()}${S.role=='owner'?'<h3>Download your data</h3>'+exportButtons():''}<p><small>Paid until ${esc(S.shop.paid_until||'-')}</small></p><p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><p><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button></p><button onclick="logout()">Log out</button>`}};
 
 function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
  `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
@@ -167,8 +176,6 @@ const price=p=>S.pr[p.id]??p.sell_price;
 function setPrice(id){const p=S.products.find(x=>x.id==id),v=parseFloat(prompt('Price per '+p.unit+' for this sale (normal: '+p.sell_price+')',price(p)));
  if(!(v>=0))return;if(v<p.buy_price&&!confirm('Below your buying price ('+p.buy_price+'). Sell at a loss?'))return;
  S.pr[p.id]=v;$('#cart').innerHTML=cartView()}
-async function setType(t){const {error}=await sb.from('shops').update({type:t}).eq('id',S.shop.id);
- if(error)return alert(error.message);S.shop.type=t;render()}
 
 const soon=d=>new Date(Date.now()+d*864e5).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 const meta=p=>(cfg().sku&&p.sku?' · '+esc(p.sku):'')+(cfg().exp&&p.expiry?` · <span class="${p.expiry<=soon(30)?'ex':''}">exp ${p.expiry}</span>`:'');
@@ -280,6 +287,61 @@ function summaryText(){const td=today(),t=S.days.find(d=>d.day==td)||{};
  if(low.length)L.push('Running low: '+low.slice(0,8).join(', '));
  return L.join('\n')}
 function shareSummary(){window.open('https://wa.me/?text='+encodeURIComponent(summaryText()),'_blank')}
+
+// ---------- CSV export (owners) ----------
+// Prefix cells that Excel would treat as formulas (CSV injection), then quote when needed.
+const csvCell=v=>{let s=String(v??'');if(/^[=+\-@\t\r]/.test(s))s="'"+s;return/[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+function download(name,rows){
+ const blob=new Blob(['﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+ const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+async function fetchAll(build){const out=[];
+ for(let from=0;;from+=1000){const {data,error}=await build().range(from,from+999);if(error)throw error;out.push(...data);if(data.length<1000)return out}}
+function exportButtons(){return`<div class="m"><button class="s" onclick="exportData('sales',this)">Sales</button><button class="s" onclick="exportData('stock',this)">Stock</button><button class="s" onclick="exportData('customers',this)">Customers</button></div>`}
+async function exportData(kind,btn){
+ const label=btn.textContent;btn.disabled=true;btn.textContent='…';
+ try{
+  const sid=S.shop.id,file=`${S.shop.name.replace(/[^\w-]+/g,'_')}-${kind}-${today()}.csv`;
+  const dt=t=>new Date(t).toLocaleString('en-CA',{timeZone:'Africa/Nairobi',hour12:false}).replace(',','');
+  if(kind=='sales'){
+   const [sales,custs]=await Promise.all([
+    fetchAll(()=>sb.from('sales').select('id,created_at,total,paid,method,mpesa_code,voided,customer_id,sale_items(name,qty,unit_price,unit_cost)').eq('shop_id',sid).order('created_at')),
+    fetchAll(()=>sb.from('customer_balances').select('customer_id,name').eq('shop_id',sid))]);
+   const cn=Object.fromEntries(custs.map(c=>[c.customer_id,c.name]));
+   download(file,[['Date & time','Item','Qty','Unit price','Line total','Unit cost','Payment','M-Pesa code','Customer','Sale total','Paid','Voided'],
+    ...sales.flatMap(s=>(s.sale_items.length?s.sale_items:[{}]).map(i=>[dt(s.created_at),i.name,i.qty,i.unit_price,i.qty*i.unit_price||'',i.unit_cost,s.method,s.mpesa_code,cn[s.customer_id]||'',s.total,s.paid,s.voided?'yes':'']))]);
+  }else if(kind=='stock'){
+   const p=await fetchAll(()=>sb.from('products').select('name,variant,category,sku,unit,buy_price,sell_price,stock_qty,low_stock_at,expiry,active').eq('shop_id',sid).order('name'));
+   download(file,[['Name','Variant','Category','SKU','Unit','Buy price','Sell price','In stock','Reorder at','Expiry','Active'],
+    ...p.map(x=>[x.name,x.variant,x.category,x.sku,x.unit,x.buy_price,x.sell_price,x.stock_qty,x.low_stock_at,x.expiry,x.active?'yes':'no'])]);
+  }else{
+   const c=await fetchAll(()=>sb.from('customer_balances').select('name,phone,balance').eq('shop_id',sid).order('name'));
+   download(file,[['Name','Phone','Balance owed'],...c.map(x=>[x.name,x.phone,x.balance])]);
+  }
+ }catch(e){alert('Download failed: '+(e.message||e))}
+ finally{btn.disabled=false;btn.textContent=label}}
+
+// ---------- Platform admin (only for accounts in private.admins) ----------
+async function loadAdmin(){const {data,error}=await sb.rpc('admin_list_shops');if(error)return alert(error.message);
+ S.adm=data||[];const locked=!S.shop||(S.shop.paid_until&&S.shop.paid_until<today());
+ if(locked)app.innerHTML=`<main>${VIEWS.admin()}<p>${S.shop?'<button onclick="boot()">Back</button> ':''}<button onclick="logout()">Log out</button></p></main>`;
+ else{S.tab='admin';render()}}
+VIEWS.admin=()=>{const exp=S.adm.filter(s=>s.paid_until&&s.paid_until<today()).length;
+ return`<h3>Admin · ${S.adm.length} shops · ${exp} expired</h3><input placeholder="Search shop, owner email or phone" value="${esc(S.aq||'')}" oninput="S.aq=this.value;$('#al').innerHTML=adminList()"><div id="al">${adminList()}</div>`};
+function adminList(){const q=(S.aq||'').toLowerCase(),td=today(),typ=t=>(TYPES.find(x=>x[0]==t)||[0,t])[1];
+ return S.adm.filter(s=>[s.name,s.owner_email,s.phone].join(' ').toLowerCase().includes(q)).map(s=>{const ex=s.paid_until&&s.paid_until<td;
+  return`<div class="row"><div>${esc(s.name)}<small>${esc(s.owner_email||'no owner')}${s.phone?' · '+esc(s.phone):''} · ${esc(typ(s.type))} · ${s.members} user(s)</small>
+  <small><span class="${ex?'low':''}">${ex?'EXPIRED ':'Paid until '}${esc(s.paid_until||'-')}</span> · 30 days: ${kes(s.sales_30d)}${s.last_sale?' · last sale '+esc(String(s.last_sale).slice(0,10)):''}</small></div>
+  <div><button class="s" onclick="adminPay('${s.id}')">+ Payment</button> <button class="s" onclick="adminType('${s.id}')">Type</button></div></div>`}).join('')||'<p>No shops match.</p>'}
+async function adminPay(id){const s=S.adm.find(x=>x.id==id);
+ const days=parseInt(prompt(`Add how many days to ${s.name}?`,'30'),10);if(!(days>0))return;
+ const amt=prompt('Amount received (KES), optional','');if(amt===null)return;
+ const code=prompt('M-Pesa code, optional','');if(code===null)return;
+ const {data,error}=await sb.rpc('admin_extend_shop',{p_shop:id,p_days:days,p_amount:amt.trim()?+amt:null,p_mpesa_code:code.trim()||null});
+ if(error)return alert(error.message);alert(`${s.name} is now paid until ${data}`);loadAdmin()}
+async function adminType(id){const s=S.adm.find(x=>x.id==id);
+ const t=prompt('Shop type: '+TYPES.map(x=>x[0]).join(', '),s.type);if(t===null||t.trim()==s.type)return;
+ const {error}=await sb.rpc('admin_set_shop_type',{p_shop:id,p_type:t.trim().toLowerCase()});if(error)return alert(error.message);loadAdmin()}
 
 boot();
 </script></body></html>

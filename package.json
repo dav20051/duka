@@ -1,0 +1,11 @@
+{
+  "name": "duka",
+  "private": true,
+  "description": "Duka: sales, stock and debts for Kenyan shops",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

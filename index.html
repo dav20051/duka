@@ -55,7 +55,8 @@ h1,a{color:var(--accent)}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .row.tap{cursor:pointer;-webkit-tap-highlight-color:transparent}.row.tap:active{outline:2px solid var(--accent)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.ib{display:flex;gap:6px;align-items:center}.ib input{flex:1}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
+.ib{display:flex;gap:6px;align-items:center}.ib input{flex:1}
+.why{display:grid;gap:8px;margin:8px 0 4px}.why .pn{margin-bottom:2px}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
 .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on);padding:8px 16px;border-radius:20px;z-index:60;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none}
 @media print{body *{visibility:hidden}#rcpt,#rcpt *{visibility:visible}#rcpt{position:absolute;left:0;top:0;width:58mm;padding:0;border-radius:0;font-size:11px}@page{margin:3mm}}
 </style></head><body>
@@ -122,6 +123,11 @@ ${ref?`<div class="ob">Invited with code ${esc(ref)}: create an account to start
 <input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (8+ characters)">
 <button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p>
 <p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
+<h3>Why shops use Duka</h3><div class="why">
+<div class="card"><span class="pn">🔍 See what is missing from your shelves</span><small>Count your stock and Duka shows, in shillings, what has disappeared: theft, mistakes or damage. Many shops save more than the monthly fee.</small></div>
+<div class="card"><span class="pn">⚡ Your whole shop ready in minutes</span><small>Load your stock list in one go instead of typing item by item. On Premium, we load it for you.</small></div>
+<div class="card"><span class="pn">📒 Never forget who owes you</span><small>Every debt recorded, with reminders on WhatsApp or SMS.</small></div>
+<div class="card"><span class="pn">📴 Works without internet</span><small>Keep selling when the network is down. Receipts by WhatsApp or printer.</small></div></div>
 <h3>Simple pricing</h3><p class="lb">Start with 30 days free, with all Standard features. Pay by M-Pesa. Save up to 2 months when you pay yearly.</p>${pricingHTML()}
 <p class="lb">Questions? <a href="https://wa.me/${SUPPORT_PHONE}" target="_blank" rel="noopener">WhatsApp ${PAY_TO}</a></p></main>`}
 async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;

@@ -20,6 +20,16 @@
     'Shop phone (optional)': 'Simu ya duka (si lazima)', 'Start': 'Anza',
     'Referral or agent code (optional)': 'Msimbo wa rufaa au wakala (si lazima)',
     'New password': 'Nenosiri jipya', 'Save password': 'Hifadhi nenosiri',
+    // Sign-in benefits
+    'Why shops use Duka': 'Kwa nini maduka yanatumia Duka',
+    '🔍 See what is missing from your shelves': '🔍 Ona kinachopotea kwenye rafu zako',
+    'Count your stock and Duka shows, in shillings, what has disappeared: theft, mistakes or damage. Many shops save more than the monthly fee.': 'Hesabu stoo yako na Duka itakuonyesha, kwa shilingi, kilichopotea: wizi, makosa au uharibifu. Maduka mengi huokoa zaidi ya ada ya mwezi.',
+    '⚡ Your whole shop ready in minutes': '⚡ Duka lako lote tayari kwa dakika chache',
+    'Load your stock list in one go instead of typing item by item. On Premium, we load it for you.': 'Weka orodha yako yote ya stoo mara moja badala ya kuandika bidhaa moja moja. Kwenye Premium, tunakuwekea sisi.',
+    '📒 Never forget who owes you': '📒 Usisahau anayekudai',
+    'Every debt recorded, with reminders on WhatsApp or SMS.': 'Kila deni linarekodiwa, na ukumbusho kwa WhatsApp au SMS.',
+    '📴 Works without internet': '📴 Inafanya kazi bila mtandao',
+    'Keep selling when the network is down. Receipts by WhatsApp or printer.': 'Endelea kuuza mtandao ukikatika. Risiti kwa WhatsApp au printa.',
     // Sell
     'Search product': 'Tafuta bidhaa', '+ Add': '+ Ongeza', 'Cart': 'Kikapu', 'Cash': 'Pesa taslimu',
     'M-Pesa': 'M-Pesa', 'Debt': 'Deni', 'Choose customer': 'Chagua mteja',

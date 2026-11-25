@@ -158,6 +158,7 @@ async function boot(){
   if(b&&b[0])Object.assign(S.shop,{plan:b[0].plan,paid_until:b[0].paid_until,is_branch:b[0].is_branch,main_shop:b[0].main_shop,branches:+b[0].branches});
   if(S.shop.paid_until&&S.shop.paid_until<today())return lockedView();
   await load();S.offline=false;saveCache();
+  if(S.admin&&!S.adminShown){S.adminShown=true;return loadAdmin()} // platform admins land on Admin first
  }catch(e){
   const c=lsGet('duka:cache:'+S.uid,true);
   if(!isNet(e))return alert(e.message||e);

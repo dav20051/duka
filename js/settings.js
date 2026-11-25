@@ -51,7 +51,7 @@ async function adminDelete(id){const s=S.adm.find(x=>x.id==id);if(prompt(`Perman
  const {error}=await sb.rpc('admin_delete_shop',{p_shop:id});if(error)return alert(error.message);alert('Shop deleted.');loadAdmin()}
 
 // Actions that change records other than sales need the internet; sales work offline.
-['adminGift','adminReverse','adminPayAgent','adminSwitch','adminSaveAnn','adminTab','saveShop','savePerms','savePw','payHistory','reqDelete','adminDelete','saveExpense','deleteExpense','saveCount','cashCount','addProduct','restock','saveRestock','showImport','runImport','stkApply','saveCustomer','savePayment','customerView','removeCustomer','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
+['saveSupplier','saveSupplierPay','savePurchase','supplierPage','removeSupplier','adminGift','adminReverse','adminPayAgent','adminSwitch','adminSaveAnn','adminTab','saveShop','savePerms','savePw','payHistory','reqDelete','adminDelete','saveExpense','deleteExpense','saveCount','cashCount','addProduct','restock','saveRestock','showImport','runImport','stkApply','saveCustomer','savePayment','customerView','removeCustomer','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
  .forEach(n=>{const f=window[n];if(typeof f!='function')return;window[n]=function(...a){if(!navigator.onLine)return alert('You are offline. This needs internet. Selling still works offline.');return f.apply(this,a)}});
 if('serviceWorker' in navigator){
  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(reg=>setInterval(()=>reg.update().catch(()=>{}),30*60e3)).catch(()=>{}));

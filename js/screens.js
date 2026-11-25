@@ -9,14 +9,14 @@ const VIEWS={
   <div class="g"><select onchange="S.ss=this.value;$('#stl').innerHTML=stockList()">${[['name','A to Z'],['low','Running low first'],['qty','Least stock first'],['value','Highest stock value'],...(cfg().exp?[['exp','Expiring soonest']]:[])].map(([v,l])=>`<option value="${v}" ${(S.ss||'name')==v?'selected':''}>${l}</option>`).join('')}</select>
   ${cats().length?`<select onchange="S.sc=this.value;$('#stl').innerHTML=stockList()"><option value="">All categories</option>${cats().map(c=>`<option ${S.sc==c?'selected':''}>${esc(c)}</option>`).join('')}</select>`:''}</div>`:''}
   <div id="stl">${stockList()}</div>`,
- debts:()=>{const d=S.customers.filter(c=>+c.balance>0),tot=d.reduce((a,c)=>a+ +c.balance,0),od=d.filter(c=>ageDays(c)>30),odv=od.reduce((a,c)=>a+ +c.balance,0),all=S.df=='all';
-  return`<div class="tools"><button class="p" onclick="customerForm()">+ Add customer</button></div>
+ debts:()=>{if(S.role=='owner'&&S.dmode=='sup')return debtSwitch()+supplierView();const d=S.customers.filter(c=>+c.balance>0),tot=d.reduce((a,c)=>a+ +c.balance,0),od=d.filter(c=>ageDays(c)>30),odv=od.reduce((a,c)=>a+ +c.balance,0),all=S.df=='all';
+  return`${debtSwitch()}<div class="tools"><button class="p" onclick="customerForm()">+ Add customer</button></div>
   <div class="g"><div class="card">Total owed<b>${kes(r2(tot))}</b><small>${d.length} customer(s)</small></div><div class="card">Over 30 days<b class="${odv?'low':''}">${kes(r2(odv))}</b><small>${od.length} customer(s)</small></div></div>
   <div class="m"><button class="${all?'':'on'}" onclick="S.df='owe';render()">Who owes you</button><button class="${all?'on':''}" onclick="S.df='all';render()">All customers</button></div>
   ${S.customers.length?`<input placeholder="Search customers" value="${esc(S.dq||'')}" oninput="S.dq=this.value;$('#dl').innerHTML=debtList()">`:''}<div id="dl">${debtList()}</div>`},
  today:()=>{const R=S.rep,low=S.products.filter(p=>p.stock_qty<=p.low_stock_at),own=S.role=='owner';
   return`${S.members&&S.members.length>1?shopSwitcher():''}<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
-  ${periodPicker()}${R?reportCards(R,S.repPrev):'<p class="lb">Loading…</p>'}
+  ${onboardingCard()}${periodPicker()}${R?reportCards(R,S.repPrev):'<p class="lb">Loading…</p>'}
   ${R&&isTodayRange()?cashCheckCard(R):''}
   <div class="tools">${can('expenses')?'<button class="p" onclick="expenseForm()">+ Expense</button>':''}<button class="s" onclick="shareSummary()">📤 Send summary on WhatsApp</button></div>
   ${R?payMixR(R):''}
@@ -132,6 +132,8 @@ function stockList(){const q=(S.sq||'').toLowerCase().trim(),c=S.sc||'',srt=S.ss
  return L.map(p=>`<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · <span class="${p.stock_qty<=p.low_stock_at?'low':''}">${fq(p.stock_qty)} ${esc(p.unit)} left</span> · reorder at ${p.low_stock_at}${meta(p)}${srt=='value'?' · value '+kes(r2(p.stock_qty*p.buy_price)):''}</small></div><div><button class="s" onclick="restock('${p.id}')">+ Stock</button> <button class="s" onclick="editProduct('${p.id}')">Edit</button></div></div>`).join('')}
 
 // ---------- Delivery (restock) with current buying price ----------
+function debtSwitch(){if(S.role!='owner')return'';const sup=S.dmode=='sup';
+ return`<div class="m" style="margin-top:0"><button class="${sup?'':'on'}" onclick="S.dmode='cust';render()">Customers owe you</button><button class="${sup?'on':''}" onclick="S.dmode='sup';render()">You owe suppliers${supplierOwed()?' · '+kes(supplierOwed()):''}</button></div>`}
 function restock(id){const p=S.products.find(x=>x.id==id),c=cfg();
  document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
  <h3>Delivery · ${pn(p)}</h3><p class="lb">Now ${fq(p.stock_qty)} ${esc(p.unit)} in stock.</p>
@@ -139,7 +141,7 @@ function restock(id){const p=S.products.find(x=>x.id==id),c=cfg();
  <div class="g"><div><label class="lb">Buying price per ${esc(p.unit)}</label><input id="rb" type="number" step="any" value="${p.buy_price}" oninput="rsCalc()"></div>
  <div><label class="lb">Selling price per ${esc(p.unit)}</label><input id="rs" type="number" step="any" value="${p.sell_price}" oninput="rsCalc()"></div></div>
  ${c.exp?`<label class="lb">Earliest expiry on the shelf now</label><input id="rx" type="date" value="${p.expiry||''}">`:''}
- <p class="lb" id="rm"></p>
+ ${deliverySupplierFields()}<p class="lb" id="rm"></p>
  <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveRestock('${p.id}',this)">Save delivery</button></div></div></div>`);
  S.rsp=p;rsCalc();setTimeout(()=>$('#rq')&&$('#rq').focus(),50)}
 function rsCalc(){const p=S.rsp,b=+$('#rb').value,s=+$('#rs').value,q=+$('#rq').value,m=$('#rm');if(!m)return;
@@ -150,5 +152,6 @@ function rsCalc(){const p=S.rsp,b=+$('#rb').value,s=+$('#rs').value,q=+$('#rq').
 async function saveRestock(id,btn){const q=+$('#rq').value,b=$('#rb').value,s=$('#rs').value,x=$('#rx');
  if(!(q>0))return alert('Enter the quantity received');if(+s<+b&&!confirm('The selling price is below the buying price. Save anyway?'))return;
  btn.disabled=true;
- const {error}=await sb.rpc('restock_product',{p_product:id,p_qty:q,p_buy:b===''?null:+b,p_sell:s===''?null:+s,p_expiry:x&&x.value||null});
+ const su=$('#rsu')&&$('#rsu').value||null,pa=$('#rpa')?$('#rpa').value:'';
+ const {error}=await sb.rpc('restock_product',{p_product:id,p_qty:q,p_buy:b===''?null:+b,p_sell:s===''?null:+s,p_expiry:x&&x.value||null,p_supplier:su,p_paid:su&&pa!==''?Math.max(0,+pa):null,p_paid_from:su?$('#rpf').value:'cash'});
  if(error){btn.disabled=false;return alert(error.message)}closeEdit();await load();saveCache();render();toast('✓ Delivery saved')}

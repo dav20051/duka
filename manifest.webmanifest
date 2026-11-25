@@ -1,7 +1,8 @@
 {
+  "id": "/",
   "name": "Duka: sales, stock & debts",
   "short_name": "Duka",
-  "description": "Sales, stock and customer debts for Kenyan shops. Works offline.",
+  "description": "Sales, stock, customer debts and real profit for Kenyan shops. Works offline. Kiswahili or English.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -9,9 +10,21 @@
   "background_color": "#1d1815",
   "theme_color": "#1d1815",
   "lang": "en",
+  "categories": ["business", "finance", "productivity"],
   "icons": [
     { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "img/screen-today.jpg", "sizes": "780x1560", "type": "image/jpeg", "form_factor": "narrow", "label": "Today: sales, money in and real profit" },
+    { "src": "img/screen-sell.jpg", "sizes": "780x1560", "type": "image/jpeg", "form_factor": "narrow", "label": "Sell quickly with change and receipts" },
+    { "src": "img/screen-debts.jpg", "sizes": "780x1560", "type": "image/jpeg", "form_factor": "narrow", "label": "Customer debts with full history" },
+    { "src": "img/screen-stocktake.jpg", "sizes": "780x1560", "type": "image/jpeg", "form_factor": "narrow", "label": "Stock-take shows what is missing" }
+  ],
+  "shortcuts": [
+    { "name": "Sell", "url": "./#sell", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Debts", "url": "./#debts", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Today", "url": "./#today", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }

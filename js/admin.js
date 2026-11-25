@@ -3,11 +3,11 @@
 // ---------- Platform admin (only for accounts in private.admins) ----------
 async function loadAdmin(){const [l,rv,ag,st]=await Promise.all([sb.rpc('admin_list_shops'),sb.rpc('admin_revenue'),sb.rpc('admin_list_agents'),sb.rpc('app_settings')]);
  if(l.error)return alert(l.error.message);S.adm=l.data||[];S.rev=rv.data||[];S.agents=ag.data||[];S.settings=st.data||S.settings||{};S.adt=S.adt||'shops';
- if(S.adt=='payments')await loadPayments();if(S.adt=='growth')await loadGrowth();adminRender()}
+ if(S.adt=='payments')await loadPayments();if(S.adt=='growth')await loadGrowth();if(S.adt=='errors')await loadErrors();adminRender()}
 function adminRender(){const locked=!S.shop||(S.shop.paid_until&&S.shop.paid_until<today());
  if(locked){S.inApp=false;app.innerHTML=`<main>${VIEWS.admin()}<p>${S.shop?'<button onclick="boot()">Back</button> ':''}<button onclick="logout()">Log out</button></p></main>`}
  else{S.tab='admin';render()}}
-async function adminTab(t){S.adt=t;if(t=='payments')await loadPayments();if(t=='growth')await loadGrowth();adminRender()}
+async function adminTab(t){S.adt=t;if(t=='payments')await loadPayments();if(t=='growth')await loadGrowth();if(t=='errors')await loadErrors();adminRender()}
 const daysTo=d=>d?Math.round((new Date(d+'T00:00:00Z')-new Date(today()+'T00:00:00Z'))/864e5):null;
 function shopStatus(s){const td=today(),d=daysTo(s.paid_until),last=s.last_sale?String(s.last_sale).slice(0,10):null,age=Math.round((Date.now()-new Date(s.created_at))/864e5);
  return{expired:!s.parent_id&&s.paid_until&&s.paid_until<td,expiring:!s.parent_id&&d!==null&&d>=0&&d<=7,trial:!s.parent_id&&s.plan=='trial'&&!(s.paid_until&&s.paid_until<td),
@@ -19,8 +19,8 @@ VIEWS.admin=()=>{const td=today(),main=S.adm.filter(s=>!s.parent_id),live=main.f
  <div class="card">On trial<b>${n('trial')}</b><small>${main.length-live.length} expired · ${S.adm.length-main.length} branch(es)</small></div>
  <div class="card">Monthly value<b>${kes(mrr)}</b><small>active plans at monthly price</small></div>
  <div class="card">Collected ${mo}<b>${kes(thisMonth)}</b><small>${S.rev.slice(1,4).map(r=>esc(r.month)+': '+kes(r.amount)).join('<br>')||'no earlier months'}</small></div></div>
- <div class="chips per">${[['shops','Shops'],['payments','Payments'],['agents','Agents'],['growth','Growth'],['settings','Settings']].map(([k,l])=>`<button class="s${T==k?' on':''}" onclick="adminTab('${k}')">${l}</button>`).join('')}</div>
- ${T=='payments'?adminPayments():T=='agents'?adminAgents():T=='growth'?adminGrowth():T=='settings'?adminSettings():adminShops()}`};
+ <div class="chips per">${[['shops','Shops'],['payments','Payments'],['agents','Agents'],['growth','Growth'],['errors','Errors'],['settings','Settings']].map(([k,l])=>`<button class="s${T==k?' on':''}" onclick="adminTab('${k}')">${l}</button>`).join('')}</div>
+ ${T=='payments'?adminPayments():T=='agents'?adminAgents():T=='growth'?adminGrowth():T=='settings'?adminSettings():T=='errors'?adminErrors():adminShops()}`};
 // --- Shops with follow-up filters
 const AF=[['all','All'],['expiring','Ending in 7 days'],['expired','Expired'],['trial','On trial'],['inactive','Not selling 7+ days'],['del','Delete requests']];
 function adminShops(){const f=S.af||'all',cnt=k=>k=='all'?S.adm.length:S.adm.filter(s=>shopStatus(s)[k]).length;
@@ -120,3 +120,13 @@ async function adminType(id){const s=S.adm.find(x=>x.id==id);
  const t=prompt('Shop type: '+TYPES.map(x=>x[0]).join(', '),s.type);if(t===null||t.trim()==s.type)return;
  const {error}=await sb.rpc('admin_set_shop_type',{p_shop:id,p_type:t.trim().toLowerCase()});if(error)return alert(error.message);loadAdmin()}
 
+
+// --- Errors reported by phones (last 7 days, grouped)
+async function loadErrors(){const {data,error}=await sb.rpc('admin_errors',{p_days:7});if(error)return alert(error.message);S.errs=data||[]}
+function adminErrors(){const E=S.errs||[];
+ return`<p class="lb">Problems the app hit on people's phones in the last 7 days. The same error is grouped. Send me the message and where it happened to get it fixed.</p>
+ ${E.map(e=>`<div class="card" style="margin:6px 0"><span class="pn">${esc(e.message)}</span><small>${esc(e.source||'')} · ${e.times} time(s) · ${e.people} person(s)${e.app_version?' · '+esc(e.app_version):''}</small>
+  <small>${e.shops?'Shops: '+esc(e.shops)+' · ':''}first ${dLabel(String(e.first_seen).slice(0,10))} · last ${dLabel(String(e.last_seen).slice(0,10))} ${hm(e.last_seen)}</small>
+  ${e.sample_stack?`<details><summary class="lb">Details</summary><pre style="white-space:pre-wrap;font-size:11px;margin:4px 0">${esc(e.sample_stack)}</pre></details>`:''}</div>`).join('')||'<p>No errors reported. 🎉</p>'}
+ ${E.length?'<button class="s" onclick="adminClearErrors()">Clear the list</button>':''}`}
+async function adminClearErrors(){if(!confirm('Clear all error reports?'))return;const {error}=await sb.rpc('admin_clear_errors');if(error)return alert(error.message);S.errs=[];adminRender()}

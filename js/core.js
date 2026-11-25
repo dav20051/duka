@@ -51,11 +51,14 @@ let REF_FROM_LINK=null;
 try{const r=new URLSearchParams(location.search).get('ref');if(r&&/^[A-Za-z0-9]{3,12}$/.test(r)){REF_FROM_LINK=r.toUpperCase();lsSet('duka:ref',{code:REF_FROM_LINK,at:Date.now()})}}catch(e){}
 function savedRef(){const v=lsGet('duka:ref',true);if(!v||typeof v!='object'||!v.code||Date.now()-v.at>30*864e5){lsSet('duka:ref','');return''}return v.code}
 const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
+// App shortcuts and links can open a tab directly, e.g. ./#debts
+try{const h=location.hash.slice(1);if(['sell','stock','debts','today','more'].includes(h))S.tab=h}catch(e){}
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 
 function authView(){S.inApp=false;const ref=REF_FROM_LINK;app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
 ${ref?`<div class="ob">Invited with code ${esc(ref)}: create an account to start your 30 days free.</div>`:''}
-<p><button class="s" onclick="setLang(LANG=='sw'?'en':'sw')">🌐 ${LANG=='sw'?'English':'Kiswahili'}</button></p>
+<p><button class="p" style="width:100%" onclick="startDemo()">👀 Try a demo shop (no sign-up)</button></p>
+<p><button class="s" onclick="setLang(LANG=='sw'?'en':'sw')">🌐 ${LANG=='sw'?'English':'Kiswahili'}</button> <a href="home.html">What is Duka?</a></p>
 <input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (8+ characters)">
 <button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p>
 <p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
@@ -88,9 +91,11 @@ function lockedView(){S.inApp=false;
 async function logout(){await sb.auth.signOut();S.uid=null;location.reload()}
 
 // ---------- Start-up: works online, and offline from the last saved copy ----------
-const CACHE_KEYS=['members','shop','role','admin','settings','products','customers','days','sales','invites','refs','rep','repPrev','exps','counts','team','perms','email'];
-function saveCache(){if(!S.uid)return;const c={};CACHE_KEYS.forEach(k=>c[k]=S[k]);lsSet('duka:cache:'+S.uid,c)}
+const CACHE_KEYS=['members','shop','role','admin','settings','products','customers','days','sales','invites','refs','rep','repPrev','exps','counts','team','perms','email','suppliers'];
+function saveCache(){if(!S.uid||S.demo)return;const c={};CACHE_KEYS.forEach(k=>c[k]=S[k]);lsSet('duka:cache:'+S.uid,c)}
 async function boot(){
+ if(S.demo)return render();
+ if(/[?&]demo\b/.test(location.search))return startDemo();
  const {data:{session}}=await sb.auth.getSession();
  if(!session)return authView();
  if(S.rec)return recoverView();
@@ -132,6 +137,7 @@ async function load(){const sid=S.shop.id;
  const err=[p,c,d,sl,si].find(r=>r.error);if(err)throw err.error;
  S.products=p.data||[];S.customers=c.data||[];S.days=d.data||[];S.sales=sl.data||[];S.invites=si.data||[];
  if(S.role=='owner'&&!S.shop.is_branch){const {data:r}=await sb.rpc('my_referrals',{p_shop:sid});S.refs=r&&r[0]||{signed_up:0,rewarded:0}}
+ if(S.role=='owner'){const {data:sp}=await sb.from('supplier_balances').select('*').eq('shop_id',sid).order('name');S.suppliers=sp||[]}else S.suppliers=[];
  try{await loadReport()}catch(e){if(!isNet(e))console.warn(e)}
  // Show sales still waiting to sync so the shop sees what it sold offline.
  const pend=queue().filter(x=>x.sale.shop_id==sid&&!S.sales.some(s=>s.id==x.sale.id));
@@ -176,4 +182,4 @@ const TABS={sell:'Sell',stock:'Stock',debts:'Debts',today:'Today',more:'More'};
 function go(t){if(t=='admin')return loadAdmin();S.tab=t;render()}
 function render(){S.inApp=true;if(S.tab=='admin'&&!S.adm)S.tab='today';
  const tabs=Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).concat(S.admin&&!S.offline?['admin']:[]);
- app.innerHTML=`<main>${statusBar()}${annBar()}${VIEWS[S.tab]()}</main><nav>${tabs.map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]||'Admin'}</button>`).join('')}</nav>`}
+ app.innerHTML=`<main>${S.demo?demoBar():''}${statusBar()}${annBar()}${VIEWS[S.tab]()}</main><nav>${tabs.map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]||'Admin'}</button>`).join('')}</nav>`}

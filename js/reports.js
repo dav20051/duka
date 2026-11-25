@@ -46,6 +46,7 @@ function reportCards(R,P){const[, ,lbl]=prevRange(),own=S.role=='owner',rp=repor
  ${rp?`<div class="card">Gross profit<b>${kes(r2(R.gross_profit))}</b><small>sales minus buying price</small>${P?delta(R.gross_profit,P.gross_profit,lbl):''}</div>
  <div class="card">Net profit<b class="${net<0?'low':''}">${kes(net)}</b><small>after expenses</small></div>`:''}
  <div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>
+ ${own&&(supplierOwed()||+R.supplier_paid)?`<div class="card">You owe suppliers<b>${kes(supplierOwed())}</b><small>paid ${kes(R.supplier_paid||0)} in this period</small></div>`:''}
  ${rp?`<div class="card">Stock value<b>${kes(r2(stockVal()))}</b><small>at cost price</small></div>`:''}</div>
  ${+R.voided_count?`<p class="lb">${R.voided_count} voided sale(s) worth ${kes(R.voided_total)} are not counted.</p>`:''}`}
 function payMixR(R){const x={cash:+R.cash_sales,mpesa:+R.mpesa_sales,debt:+R.new_debt},T=x.cash+x.mpesa+x.debt;if(!T)return'';const pc=k=>Math.round(x[k]/T*100);
@@ -75,14 +76,14 @@ function expenseList(){const L=S.exps||[];if(!L.length)return'';const pf={cash:'
  return`<h3>Expenses</h3>${L.map(x=>`<div class="row"><div>${esc(x.category||'Other')}${x.label&&x.label!=x.category?' · '+esc(x.label):''}<small>${dLabel(x.spent_on)} · ${pf[x.paid_from]||x.paid_from}</small></div><div><b>${kes(x.amount)}</b>${S.role=='owner'?` <button class="s" onclick="deleteExpense('${x.id}')">✕</button>`:''}</div></div>`).join('')}`}
 // End-of-day cash check: what should be in the drawer vs what is there.
 const floatKey=()=>'duka:float:'+S.shop.id;
-const expectedCash=(R,fl)=>r2(+fl+ +R.cash_sales+ +R.debt_cash- +R.expenses_cash);
+const expectedCash=(R,fl)=>r2(+fl+ +R.cash_sales+ +R.debt_cash- +R.expenses_cash- +(R.supplier_cash||0));
 function cashCheckCard(R){const fl=+(lsGet(floatKey())||0),last=(S.counts||[]).find(c=>c.day==today());
  return`<div class="card" style="margin-top:8px"><span class="pn">💰 Cash in the drawer</span><small>Expected now: <b>${kes(expectedCash(R,fl))}</b>${fl?` (includes ${kes(fl)} starting cash)`:''}</small>
  ${last?`<small>Counted at ${hm(last.created_at)}: ${kes(last.counted)} · <span class="${+last.difference<0?'low':''}">${+last.difference==0?'exact ✔':(+last.difference<0?'short ':'over ')+kes(Math.abs(last.difference))}</span></small>`:''}
  <p><button class="s" onclick="cashCount()">Count the cash</button></p></div>`}
 async function cashCount(){try{await loadReport()}catch(e){}const R=S.rep,fl=lsGet(floatKey())||'';closeEdit();
  document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>Count the cash</h3>
- <p class="lb">Cash sales ${kes(R.cash_sales)} + debt paid in cash ${kes(R.debt_cash)} − expenses from the drawer ${kes(R.expenses_cash)}</p>
+ <p class="lb">Cash sales ${kes(R.cash_sales)} + debt paid in cash ${kes(R.debt_cash)} − expenses from the drawer ${kes(R.expenses_cash)}${+R.supplier_cash?` − paid to suppliers from the drawer ${kes(R.supplier_cash)}`:''}</p>
  <label class="lb">Starting cash in the morning (float)</label><input id="ccf" type="number" inputmode="numeric" value="${fl}" placeholder="0" oninput="ccCalc()">
  <label class="lb">Cash counted in the drawer now</label><input id="ccc" type="number" inputmode="numeric" step="any" oninput="ccCalc()">
  <input id="ccn" placeholder="Note (optional)"><div class="card" id="ccr"></div>

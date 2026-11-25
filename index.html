@@ -105,14 +105,17 @@ function showPlans(){document.body.insertAdjacentHTML('beforeend',`<div class="m
 function lsGet(k,json){try{const v=localStorage.getItem(k);return json?JSON.parse(v):v}catch(e){return null}}
 function lsSet(k,v){try{localStorage.setItem(k,typeof v=='string'?v:JSON.stringify(v))}catch(e){}}
 const isNet=e=>!navigator.onLine||/offline|fetch|network|load failed|timed? ?out/i.test(String(e&&e.message||e));
-try{const r=new URLSearchParams(location.search).get('ref');if(r&&/^[A-Za-z0-9]{3,12}$/.test(r))lsSet('duka:ref',r.toUpperCase())}catch(e){}
+// Invite codes: remembered for 30 days after opening an invite link; the banner shows only on that visit.
+let REF_FROM_LINK=null;
+try{const r=new URLSearchParams(location.search).get('ref');if(r&&/^[A-Za-z0-9]{3,12}$/.test(r)){REF_FROM_LINK=r.toUpperCase();lsSet('duka:ref',{code:REF_FROM_LINK,at:Date.now()})}}catch(e){}
+function savedRef(){const v=lsGet('duka:ref',true);if(!v||typeof v!='object'||!v.code||Date.now()-v.at>30*864e5){lsSet('duka:ref','');return''}return v.code}
 const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
 
-function authView(){S.inApp=false;const ref=lsGet('duka:ref');app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
+function authView(){S.inApp=false;const ref=REF_FROM_LINK;app.innerHTML=`<main class="c"><h1>Duka</h1><p>Sales, stock and debts for your shop.</p>
 ${ref?`<div class="ob">Invited with code ${esc(ref)}: create an account to start your 30 days free.</div>`:''}
 <p><button class="s" onclick="setLang(LANG=='sw'?'en':'sw')">🌐 ${LANG=='sw'?'English':'Kiswahili'}</button></p>
-<input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (6+ characters)">
+<input id="em" type="email" placeholder="Email"><input id="pw" type="password" placeholder="Password (8+ characters)">
 <button class="p" onclick="auth('in')">Log in</button> <button onclick="auth('up')">Create account</button><p><a href="#" onclick="forgot();return false">Forgot password?</a></p>
 <p class="lb">By creating an account you agree to our <a href="terms.html">Terms</a> and <a href="privacy.html">Privacy Policy</a>.</p>
 <h3>Simple pricing</h3><p class="lb">Start with 30 days free, with all Standard features. Pay by M-Pesa. Save up to 2 months when you pay yearly.</p>${pricingHTML()}
@@ -123,10 +126,12 @@ async function auth(m){const e=$('#em').value.trim(),p=$('#pw').value;
  if(!r.data.session)return alert('Check your email to confirm, then log in.');boot()}
 function setupView(){S.inApp=false;app.innerHTML=`<main class="c"><h1>Set up your shop</h1><p>30 days free.</p>
 <input id="sn" placeholder="Shop name"><input id="sp" placeholder="Shop phone (optional)"><select id="st">${TYPES.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select><p><small>Choose carefully: this decides which fields your shop sees, and only we can change it later.</small></p>
-<label class="lb">Referral or agent code (optional)</label><input id="sr" value="${esc(lsGet('duka:ref')||'')}" style="text-transform:uppercase">
+<label class="lb">Referral or agent code (optional)</label><input id="sr" value="${esc(savedRef())}" style="text-transform:uppercase">
 <button class="p" onclick="createShop()">Start</button> <button onclick="logout()">Log out</button></main>`}
 async function createShop(){const n=$('#sn').value.trim();if(!n)return alert('Enter the shop name');
  const {error}=await sb.rpc('create_shop',{p_name:n,p_phone:$('#sp').value.trim()||null,p_type:$('#st').value,p_ref:$('#sr').value.trim()||null});
+ if(error&&/code was not found/i.test(error.message)){lsSet('duka:ref','');$('#sr').value='';
+  return alert('That referral or agent code is not valid. It has been cleared: check it or tap Start to continue without a code.')}
  if(error)return alert(error.message);lsSet('duka:ref','');boot()}
 function lockedView(){S.inApp=false;
  app.innerHTML=`<main class="c"><h1>${S.shop.plan=='trial'?'Free trial ended':'Subscription ended'}</h1><p>Choose a plan to keep using Duka for <b>${esc(S.shop.name)}</b>. Your records are safe and nothing has been deleted.</p>
@@ -416,8 +421,8 @@ async function voidSale(id){if(!confirm('Void this sale? Stock is put back and a
 async function forgot(){const e=$('#em').value.trim();if(!e)return alert('Type your email first, then tap Forgot password');
  const {error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
  alert(error?error.message:'If that email has an account, a reset link is on its way. Check your inbox and spam.')}
-function recoverView(){app.innerHTML=`<main class="c"><h1>New password</h1><input id="np" type="password" placeholder="New password (6+ characters)"><button class="p" onclick="setPw()">Save password</button></main>`}
-async function setPw(){const v=$('#np').value;if(v.length<6)return alert('Use 6+ characters');
+function recoverView(){app.innerHTML=`<main class="c"><h1>New password</h1><input id="np" type="password" placeholder="New password (8+ characters)"><button class="p" onclick="setPw()">Save password</button></main>`}
+async function setPw(){const v=$('#np').value;if(v.length<8)return alert('Use 8 or more characters');
  const {error}=await sb.auth.updateUser({password:v});if(error)return alert(error.message);
  S.rec=false;alert('Password updated');history.replaceState(null,'',location.pathname);boot()}
 sb.auth.onAuthStateChange(ev=>{if(ev=='PASSWORD_RECOVERY'){S.rec=true;recoverView()}});

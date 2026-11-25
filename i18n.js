@@ -11,7 +11,9 @@
     '🌗 Switch light / dark': '🌗 Badilisha mwanga / giza', '🖨 Print': '🖨 Chapisha',
     // Sign in & setup
     'Sales, stock and debts for your shop.': 'Mauzo, stoo na madeni ya duka lako.',
-    'Email': 'Barua pepe', 'Password (6+ characters)': 'Nenosiri (herufi 6 au zaidi)',
+    'Email': 'Barua pepe', 'Password (8+ characters)': 'Nenosiri (herufi 8 au zaidi)', 'New password (8+ characters)': 'Nenosiri jipya (herufi 8 au zaidi)',
+    'Use 8 or more characters': 'Tumia herufi 8 au zaidi',
+    'That referral or agent code is not valid. It has been cleared: check it or tap Start to continue without a code.': 'Msimbo huo wa rufaa au wakala si sahihi. Umeondolewa: uhakikishe au bonyeza Anza kuendelea bila msimbo.',
     'Log in': 'Ingia', 'Create account': 'Fungua akaunti', 'Forgot password?': 'Umesahau nenosiri?',
     'Simple pricing': 'Bei rahisi', 'Most popular': 'Maarufu zaidi',
     'Set up your shop': 'Sajili duka lako', '30 days free.': 'Siku 30 bure.', 'Shop name': 'Jina la duka',

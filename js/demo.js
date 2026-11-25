@@ -20,8 +20,11 @@ function demoData() {
     const hoursNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })).getHours();
     const n = 6 + Math.floor(rnd() * 8);
     for (let k = 0; k < n; k++) {
-      const hour = 8 + Math.floor(rnd() * 12); if (d === 0 && hour >= hoursNow) continue;
-      const at = new Date(new Date(nbDate(ago(d)) + 'T00:00:00+03:00').getTime() + hour * 36e5 + Math.floor(rnd() * 3600e3)).toISOString();
+      // Earlier days: shop hours 8:00-20:00. Today: spread over the hours so far, so the demo never shows an empty day.
+      const dayStart = new Date(nbDate(ago(d)) + 'T00:00:00+03:00').getTime();
+      let at;
+      if (d > 0) at = new Date(dayStart + (8 + Math.floor(rnd() * 12)) * 36e5 + Math.floor(rnd() * 3600e3)).toISOString();
+      else { const from = hoursNow >= 9 ? dayStart + 8 * 36e5 : dayStart; at = new Date(from + rnd() * Math.max(60e3, now - 60e3 - from)).toISOString(); }
       const id = uid(), lines = 1 + Math.floor(rnd() * 3); let total = 0; const its = [];
       for (let l = 0; l < lines; l++) {
         const p = pick(products), qty = p.unit == 'kg' ? pick([0.5, 1, 1, 2]) : 1 + Math.floor(rnd() * 3);

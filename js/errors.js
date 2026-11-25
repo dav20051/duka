@@ -1,7 +1,7 @@
 // Duka · Error alerts: when the app breaks on someone's phone, a short report goes to the admin's
 // Errors list. Only signed-in users report, at most 10 different errors per page load, and the
 // database drops anything beyond 30 reports per person per 10 minutes. No shop data is included.
-const APP_VERSION = 'v15';
+const APP_VERSION = 'v16';
 (function () {
   let sent = 0;
   const seen = new Set();

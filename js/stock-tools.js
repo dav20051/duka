@@ -55,6 +55,7 @@ async function parseImport(file){const out=$('#imp');if(!file)return;out.innerHT
    const key=it.sku?'s:'+it.sku.toLowerCase():'n:'+(it.name+'|'+(it.variant||'')).toLowerCase();if(seen.has(key))return errs.push(`Row ${line}: ${name} appears twice`);seen.add(key);
    it.match=S.products.find(p=>it.sku&&p.sku&&p.sku.toLowerCase()==it.sku.toLowerCase())||S.products.find(p=>(p.name+'|'+(p.variant||'')).toLowerCase()==(it.name+'|'+(it.variant||'')).toLowerCase());
    if(it.unit&&!it.match&&!units.includes(it.unit)){const u=units.find(x=>x.toLowerCase()==it.unit.toLowerCase());if(u)it.unit=u}
+   if(it.unit&&!/^[\p{L}\p{N} .\/-]{1,15}$/u.test(it.unit))it.unit=null;
    items.push(it)});
   if(!items.length)throw new Error('No products found under the column names');
   const add=items.filter(i=>!i.match),upd=items.filter(i=>i.match);

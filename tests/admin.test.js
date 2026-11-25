@@ -8,7 +8,7 @@ const R=[];const check=(n,ok,x='')=>R.push(`${ok?'PASS':'FAIL'}  ${n}${x?'  ('+x
  page.on('pageerror',e=>errs.push(e.message));let answers=[];page.on('dialog',d=>{R.push('      dialog: '+d.message().split('\n')[0]);d.accept(d.type()==='prompt'?(answers.shift()??''):undefined)});
  await page.route('**/*supabase.co/**',r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}));
  await page.goto(BASE);await page.waitForSelector('#em');
- await page.evaluate(()=>{const d=n=>{const x=new Date();x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};const ago=n=>new Date(Date.now()-n*864e5).toISOString();
+ await page.evaluate(()=>{const d=n=>{const x=new Date(today()+'T12:00:00Z');x.setUTCDate(x.getUTCDate()+n);return x.toISOString().slice(0,10)};const ago=n=>new Date(Date.now()-n*864e5).toISOString();
   const db={calls:[],settings:{mpesa_stk_enabled:false,sms_enabled:false,announcement:{active:false,message:'',level:'info'}},
    shops:[{id:'s1',name:'Mama Mboga',plan:'standard',paid_until:d(3),created_at:ago(60),owner_email:'mama@x.com',phone:'0711000001',type:'general',members:1,products:40,sales_30d:52000,last_sale:ago(0)},
           {id:'s2',name:'Kiprop Hardware',plan:'trial',paid_until:d(-2),created_at:ago(32),owner_email:'kip@x.com',phone:'0711000002',type:'hardware',members:1,products:12,sales_30d:0,last_sale:null},

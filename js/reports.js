@@ -64,7 +64,7 @@ function staffSales(R){if(S.role!='owner'||!(R.by_staff||[]).length)return'';con
 const EXP_CATS=['Rent','Transport','Electricity','Water','Wages','Airtime & data','Repairs','Licence & taxes','Food','Other'];
 function expenseForm(){closeEdit();document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>New expense</h3>
  <label class="lb">What for?</label><div class="chips" id="xc">${EXP_CATS.map(c=>`<button class="s" onclick="S.xcat='${c}';document.querySelectorAll('#xc button').forEach(b=>b.classList.toggle('on',b.textContent==S.xcat))">${c}</button>`).join('')}</div>
- <input id="xl" placeholder="Details (optional), e.g. boda to wholesaler"><input id="xa" type="number" inputmode="numeric" step="any" placeholder="Amount (KES)">
+ <input id="xl" maxlength="200" placeholder="Details (optional), e.g. boda to wholesaler"><input id="xa" type="number" inputmode="numeric" step="any" placeholder="Amount (KES)">
  <label class="lb">Paid from</label><select id="xp"><option value="cash">Cash drawer</option><option value="mpesa">M-Pesa</option><option value="bank">Bank</option><option value="other">Other / own pocket</option></select>
  <label class="lb">Date</label><input id="xd" type="date" value="${today()}" max="${today()}">
  <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveExpense(this)">Save expense</button></div></div></div>`);S.xcat=null}
@@ -86,7 +86,7 @@ async function cashCount(){try{await loadReport()}catch(e){}const R=S.rep,fl=lsG
  <p class="lb">Cash sales ${kes(R.cash_sales)} + debt paid in cash ${kes(R.debt_cash)} − expenses from the drawer ${kes(R.expenses_cash)}${+R.supplier_cash?` − paid to suppliers from the drawer ${kes(R.supplier_cash)}`:''}</p>
  <label class="lb">Starting cash in the morning (float)</label><input id="ccf" type="number" inputmode="numeric" value="${fl}" placeholder="0" oninput="ccCalc()">
  <label class="lb">Cash counted in the drawer now</label><input id="ccc" type="number" inputmode="numeric" step="any" oninput="ccCalc()">
- <input id="ccn" placeholder="Note (optional)"><div class="card" id="ccr"></div>
+ <input id="ccn" maxlength="200" placeholder="Note (optional)"><div class="card" id="ccr"></div>
  <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveCount(this)">Save count</button></div></div></div>`);ccCalc();setTimeout(()=>$('#ccc')&&$('#ccc').focus(),50)}
 function ccCalc(){const e=expectedCash(S.rep,+$('#ccf').value||0),c=$('#ccc').value;
  $('#ccr').innerHTML=`<small>Expected</small><b>${kes(e)}</b>${c===''?'':(()=>{const d=r2(+c-e);return`<small class="${d<0?'low':''}">${d==0?'Exact ✔':(d<0?'Short by ':'Over by ')+kes(Math.abs(d))}</small>`})()}`}

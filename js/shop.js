@@ -17,7 +17,7 @@ function debtList(){const q=(S.dq||'').toLowerCase().trim(),all=S.df=='all';
 // New / edit customer (also used from the Sell screen)
 function customerForm(id,cb){const c=id?S.customers.find(x=>x.customer_id==id):null;S.cfcb=cb||null;closeEdit();
  document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>${c?'Edit customer':'New customer'}</h3>
- <input id="cfn" placeholder="Name" value="${esc(c?c.name:'')}"><input id="cfp" type="tel" placeholder="Phone e.g. 0712345678" value="${esc(c&&c.phone||'')}">
+ <input id="cfn" maxlength="120" placeholder="Name" value="${esc(c?c.name:'')}"><input id="cfp" type="tel" maxlength="30" placeholder="Phone e.g. 0712345678" value="${esc(c&&c.phone||'')}">
  ${S.role=='owner'?`<label class="lb">Credit limit (optional): the most this customer may owe</label><input id="cfl" type="number" inputmode="numeric" placeholder="No limit" value="${c&&c.credit_limit!=null?c.credit_limit:''}">`:''}
  <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveCustomer(${c?`'${c.customer_id}'`:'null'},this)">Save</button></div></div></div>`);
  setTimeout(()=>$('#cfn')&&$('#cfn').focus(),50)}
@@ -142,7 +142,8 @@ function payMix(){const td=today(),x={cash:0,mpesa:0,debt:0};
  S.sales.filter(s=>!s.voided&&new Date(s.created_at).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'})==td).forEach(s=>{if(s.method in x)x[s.method]+= +s.total});
  const T=x.cash+x.mpesa+x.debt;if(!T)return'';const pc=k=>Math.round(x[k]/T*100);
  return`<h3>Today by payment</h3><div class="mix"><i style="width:${pc('cash')}%;background:var(--accent)"></i><i style="width:${pc('mpesa')}%;background:#8fb996"></i><i style="width:${pc('debt')}%;background:var(--rose)"></i></div><p class="lb">Cash ${kes(x.cash)} · M-Pesa ${kes(x.mpesa)} · Debt ${kes(x.debt)}</p>`}
-function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,8).map(s=>`<div class="row"><div>${hm(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${s.method}${s.voided?' · VOIDED':''}${s.pending?' · <span class="pend">waiting to sync</span>':''}</small></div><div><b>${s.voided?'<s>'+kes(s.total)+'</s>':kes(s.total)}</b> <button class="s" onclick="showReceipt(S.sales.find(x=>x.id=='${s.id}'))">Receipt</button>${s.voided||s.pending||!can('void')?'':` <button class="s" onclick="voidSale('${s.id}')">Void</button>`}</div></div>`).join('')}`:''}
+const saleWhen=t=>{const d=new Date(t).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});return(d==today()?'':dLabel(d)+' ')+hm(t)};
+function recent(){return S.sales.length?`<h3>Recent sales</h3>${S.sales.slice(0,8).map(s=>`<div class="row"><div>${saleWhen(s.created_at)} · ${(s.sale_items||[]).length} item(s)<small>${({cash:'Cash',mpesa:'M-Pesa',debt:'Debt'})[s.method]||esc(s.method)}${s.voided?' · VOIDED':''}${s.pending?' · <span class="pend">waiting to sync</span>':''}</small></div><div><b>${s.voided?'<s>'+kes(s.total)+'</s>':kes(s.total)}</b> <button class="s" onclick="showReceipt(S.sales.find(x=>x.id=='${s.id}'))">Receipt</button>${s.voided||s.pending||!can('void')?'':` <button class="s" onclick="voidSale('${s.id}')">Void</button>`}</div></div>`).join('')}`:''}
 
 function editProduct(id){
  const p=S.products.find(x=>x.id==id),c=cfg();
@@ -150,7 +151,7 @@ function editProduct(id){
  const units=[...new Set([...unitsFor(),p.unit])].map(u=>`<option ${u==p.unit?'selected':''}>${esc(u)}</option>`).join('');
  document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
  <h3>Edit product</h3>
- ${f('Name',`<input id="en" value="${esc(p.name)}">`)}
+ ${f('Name',`<input id="en" maxlength="120" value="${esc(p.name)}">`)}
  ${c.cat?f('Category',`<input id="ec" value="${esc(p.category||'')}">`):''}
  ${c.var?f(c.varph||'Size / variant',`<input id="ev" value="${esc(p.variant||'')}">`):''}
  ${c.sku?f('SKU / barcode',`<input id="ek" value="${esc(p.sku||'')}">`):''}

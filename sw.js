@@ -1,6 +1,6 @@
 // Offline support: keeps the app itself on the phone. Shop data and the offline sales
 // queue live in the page (localStorage); this worker never caches Supabase API calls.
-const VERSION = 'duka-v15';
+const VERSION = 'duka-v16';
 const SHELL = [
   './', 'index.html', 'i18n.js', 'manifest.webmanifest',
   'js/core.js', 'js/errors.js', 'js/screens.js', 'js/shop.js', 'js/export.js', 'js/admin.js', 'js/stock-tools.js', 'js/reports.js',

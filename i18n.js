@@ -37,6 +37,18 @@
     'Expiry date (earliest on the shelf)': 'Tarehe ya mwisho wa matumizi', 'Edit product': 'Hariri bidhaa',
     'Stock quantity': 'Idadi ya stoo', 'Unit': 'Kipimo', 'Remove product': 'Ondoa bidhaa', 'Category': 'Aina',
     'SKU / barcode': 'SKU / msimbo',
+    // Stock tools
+    '📥 Import from Excel': '📥 Leta kutoka Excel', '📋 Stock-take': '📋 Hesabu stoo', '📤 Download': '📤 Pakua',
+    'Search stock': 'Tafuta kwenye stoo', 'A to Z': 'A hadi Z', 'Running low first': 'Zinazoisha kwanza', 'Least stock first': 'Stoo ndogo kwanza',
+    'Highest stock value': 'Thamani kubwa kwanza', 'Expiring soonest': 'Zinazoisha muda kwanza', 'All categories': 'Aina zote',
+    'No products match.': 'Hakuna bidhaa inayolingana.', 'Save delivery': 'Hifadhi mzigo', '✓ Delivery saved': '✓ Mzigo umehifadhiwa',
+    'Enter the quantity received': 'Weka idadi iliyopokelewa', 'Import products': 'Leta bidhaa', '⬇ Download a template': '⬇ Pakua kiolezo',
+    'Stock-take': 'Hesabu ya stoo', 'Review counts': 'Kagua hesabu', 'Search': 'Tafuta', 'Count': 'Hesabu', '← Back to counting': '← Rudi kuhesabu',
+    'Type at least one count': 'Andika angalau hesabu moja', 'Add products first': 'Ongeza bidhaa kwanza', 'Counted': 'Zilizohesabiwa', 'Missing': 'Zinazokosekana',
+    'Point the camera at the barcode': 'Elekeza kamera kwenye msimbo', 'Reading file…': 'Inasoma faili…', 'Importing…': 'Inaleta…',
+    'That barcode is already used by another product': 'Msimbo huo tayari unatumika na bidhaa nyingine',
+    'This browser cannot scan with the camera. Use Chrome on Android, a barcode scanner, or type the code.': 'Kivinjari hiki hakiwezi kuskani kwa kamera. Tumia Chrome kwenye Android, skana, au andika msimbo.',
+    'Camera not allowed. Allow camera access for this site and try again.': 'Kamera haijaruhusiwa. Ruhusu kamera kwa tovuti hii ujaribu tena.',
     // Debts
     'Add customer': 'Ongeza mteja', 'Phone e.g. 0712345678': 'Simu mf. 0712345678', 'Save customer': 'Hifadhi mteja',
     'Paid': 'Amelipa', 'Remind': 'Kumbusha', 'SMS': 'SMS', 'No debts. 🎉': 'Hakuna madeni. 🎉',
@@ -91,6 +103,11 @@
     [/^Payment received ✔ Paid until (.+)$/, 'Malipo yamepokelewa ✔ Imelipwa hadi $1'],
     [/^Your code: (.+)$/, 'Msimbo wako: $1'],
     [/^Short by (.+)$/, 'Imepungua $1'],
+    [/^Stock \((\d+)\)$/, 'Stoo ($1)'],
+    [/^Delivery · (.+)$/, 'Mzigo · $1'],
+    [/^Quantity received \((.+)\)$/, 'Idadi iliyopokelewa ($1)'],
+    [/^Import (\d+) product\(s\)$/, 'Leta bidhaa $1'],
+    [/^Apply (\d+) correction\(s\)$/, 'Hifadhi marekebisho $1'],
     [/^How much money\? \(KES\)\n([\s\S]+)$/, 'Kiasi cha pesa? (KES)\n$1'],
   ];
   let lang = 'en';

@@ -54,7 +54,8 @@ h1,a{color:var(--accent)}
 .rc .l{display:flex;justify-content:space-between;gap:8px}.rc .t{font-weight:700;font-size:15px}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .row.tap{cursor:pointer;-webkit-tap-highlight-color:transparent}.row.tap:active{outline:2px solid var(--accent)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.ib{display:flex;gap:6px;align-items:center}.ib input{flex:1}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
 .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on);padding:8px 16px;border-radius:20px;z-index:60;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none}
 @media print{body *{visibility:hidden}#rcpt,#rcpt *{visibility:visible}#rcpt{position:absolute;left:0;top:0;width:58mm;padding:0;border-radius:0;font-size:11px}@page{margin:3mm}}
 </style></head><body>
@@ -229,10 +230,14 @@ function render(){S.inApp=true;if(S.tab=='admin'&&!S.adm)S.tab='today';
  const tabs=Object.keys(TABS).filter(t=>!(S.role=='staff'&&t=='stock')).concat(S.admin&&!S.offline?['admin']:[]);
  app.innerHTML=`<main>${statusBar()}${VIEWS[S.tab]()}</main><nav>${tabs.map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]||'Admin'}</button>`).join('')}</nav>`}
 const VIEWS={
- sell:()=>`<input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
- stock:()=>`<h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?'<input id="sk" placeholder="SKU / barcode (optional)">':''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
-  <div class="g"><input id="pq" type="number" step="any" placeholder="Quantity in stock"><select id="pu">${unitsFor().map(u=>`<option>${u}</option>`).join('')}</select></div><label class="lb">Warn me when stock reaches</label><input id="pr" type="number" step="any" value="5">${cfg().exp?'<label class="lb">Expiry date (earliest on the shelf)</label><input id="px" type="date">':''}<button class="p" onclick="addProduct()">Save product</button><h3>Stock</h3>
-  ${S.products.map(p=>`<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · <span class="${p.stock_qty<=p.low_stock_at?'low':''}">${p.stock_qty} ${esc(p.unit)} left</span> · reorder at ${p.low_stock_at}${meta(p)}</small></div><div><button class="s" onclick="restock('${p.id}')">+ Stock</button> <button class="s" onclick="editProduct('${p.id}')">Edit</button></div></div>`).join('')||'<p>No products yet.</p>'}`,
+ sell:()=>`<div class="ib"><input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><button class="s" onclick="scanInto(null,sellScanned)">📷</button></div><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
+ stock:()=>`<div class="tools"><button class="s" onclick="showImport()">📥 Import from Excel</button><button class="s" onclick="stocktake()">📋 Stock-take</button>${S.products.length?`<button class="s" onclick="exportData('stock',this)">📤 Download</button>`:''}</div>
+  <h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?`<div class="ib"><input id="sk" placeholder="SKU / barcode (optional)"><button class="s" onclick="scanInto('sk')">📷</button></div>`:''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
+  <div class="g"><input id="pq" type="number" step="any" placeholder="Quantity in stock"><select id="pu">${unitsFor().map(u=>`<option>${u}</option>`).join('')}</select></div><label class="lb">Warn me when stock reaches</label><input id="pr" type="number" step="any" value="5">${cfg().exp?'<label class="lb">Expiry date (earliest on the shelf)</label><input id="px" type="date">':''}<button class="p" onclick="addProduct()">Save product</button>
+  <h3>Stock (${S.products.length})</h3>${S.products.length?`<div class="ib"><input placeholder="Search stock" value="${esc(S.sq||'')}" oninput="S.sq=this.value;$('#stl').innerHTML=stockList()"><button class="s" onclick="scanInto(null,c=>{S.sq=c;render()})">📷</button></div>
+  <div class="g"><select onchange="S.ss=this.value;$('#stl').innerHTML=stockList()">${[['name','A to Z'],['low','Running low first'],['qty','Least stock first'],['value','Highest stock value'],...(cfg().exp?[['exp','Expiring soonest']]:[])].map(([v,l])=>`<option value="${v}" ${(S.ss||'name')==v?'selected':''}>${l}</option>`).join('')}</select>
+  ${cats().length?`<select onchange="S.sc=this.value;$('#stl').innerHTML=stockList()"><option value="">All categories</option>${cats().map(c=>`<option ${S.sc==c?'selected':''}>${esc(c)}</option>`).join('')}</select>`:''}</div>`:''}
+  <div id="stl">${stockList()}</div>`,
  debts:()=>{const d=S.customers.filter(c=>c.balance>0);return`<h3>Add customer</h3><input id="cn" placeholder="Name"><input id="cp" placeholder="Phone e.g. 0712345678">
   <button class="p" onclick="addCustomer()">Save customer</button><h3>Who owes you (${kes(d.reduce((a,c)=>a+Number(c.balance),0))})</h3>
   ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank" rel="noopener"><button class="s">Remind</button></a>${S.settings&&S.settings.sms_enabled?` <button class="s" onclick="sendSms('${c.customer_id}',this)">SMS</button>`:''}`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
@@ -319,11 +324,41 @@ async function sendSms(id,btn){if(S.shop.plan!='premium'){alert('SMS reminders a
 
 async function addProduct(){const v=i=>{const e=$('#'+i);return e?e.value.trim():''};if(!v('pn'))return alert('Enter a name');
  const {error}=await sb.from('products').insert({shop_id:S.shop.id,name:v('pn'),buy_price:+v('pb')||0,sell_price:+v('ps')||0,stock_qty:+v('pq')||0,unit:v('pu'),category:v('pc')||null,variant:v('pv')||null,sku:v('sk')||null,expiry:v('px')||null,low_stock_at:v('pr')===''?5:(+v('pr')||0)});
- if(error)return alert(error.message);await load();render()}
-async function restock(id){const q=+prompt('Quantity added');if(!q)return;const p=S.products.find(x=>x.id==id);
- await sb.from('products').update({stock_qty:+p.stock_qty+q,...askExp(p)}).eq('id',id);
- await sb.from('stock_movements').insert({shop_id:S.shop.id,product_id:id,change:q,reason:'restock'});
- await load();render()}
+ if(error)return alert(/products_shop_sku/.test(error.message)?'That barcode is already used by another product':error.message);await load();render()}
+
+// ---------- Stock list: search, sort, category ----------
+const cats=()=>[...new Set(S.products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
+function stockList(){const q=(S.sq||'').toLowerCase().trim(),c=S.sc||'',srt=S.ss||'name';
+ let L=S.products.filter(p=>(!c||p.category==c)&&(!q||[p.name,p.variant,p.category,p.sku].join(' ').toLowerCase().includes(q)));
+ const by={name:(a,b)=>a.name.localeCompare(b.name),
+  low:(a,b)=>((b.stock_qty<=b.low_stock_at)-(a.stock_qty<=a.low_stock_at))||(a.stock_qty/(a.low_stock_at||1))-(b.stock_qty/(b.low_stock_at||1)),
+  qty:(a,b)=>a.stock_qty-b.stock_qty, value:(a,b)=>b.stock_qty*b.buy_price-a.stock_qty*a.buy_price,
+  exp:(a,b)=>(a.expiry||'9999')<(b.expiry||'9999')?-1:1};
+ L=L.sort(by[srt]||by.name);
+ if(!L.length)return S.products.length?'<p>No products match.</p>':'<p>No products yet. Add one above, or import your list from Excel.</p>';
+ return L.map(p=>`<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · <span class="${p.stock_qty<=p.low_stock_at?'low':''}">${fq(p.stock_qty)} ${esc(p.unit)} left</span> · reorder at ${p.low_stock_at}${meta(p)}${srt=='value'?' · value '+kes(r2(p.stock_qty*p.buy_price)):''}</small></div><div><button class="s" onclick="restock('${p.id}')">+ Stock</button> <button class="s" onclick="editProduct('${p.id}')">Edit</button></div></div>`).join('')}
+
+// ---------- Delivery (restock) with current buying price ----------
+function restock(id){const p=S.products.find(x=>x.id==id),c=cfg();
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>Delivery · ${pn(p)}</h3><p class="lb">Now ${fq(p.stock_qty)} ${esc(p.unit)} in stock.</p>
+ <label class="lb">Quantity received (${esc(p.unit)})</label><input id="rq" type="number" step="any" inputmode="decimal" oninput="rsCalc()">
+ <div class="g"><div><label class="lb">Buying price per ${esc(p.unit)}</label><input id="rb" type="number" step="any" value="${p.buy_price}" oninput="rsCalc()"></div>
+ <div><label class="lb">Selling price per ${esc(p.unit)}</label><input id="rs" type="number" step="any" value="${p.sell_price}" oninput="rsCalc()"></div></div>
+ ${c.exp?`<label class="lb">Earliest expiry on the shelf now</label><input id="rx" type="date" value="${p.expiry||''}">`:''}
+ <p class="lb" id="rm"></p>
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveRestock('${p.id}',this)">Save delivery</button></div></div></div>`);
+ S.rsp=p;rsCalc();setTimeout(()=>$('#rq')&&$('#rq').focus(),50)}
+function rsCalc(){const p=S.rsp,b=+$('#rb').value,s=+$('#rs').value,q=+$('#rq').value,m=$('#rm');if(!m)return;
+ const L=[];if(q>0)L.push(`New stock: ${fq(rq(+p.stock_qty+q))} ${p.unit}. Cost of this delivery: ${kes(r2(q*b))}.`);
+ if(b>0&&s>0)L.push(s<b?`<span class="low">Selling price is below buying price.</span>`:`Profit ${kes(r2(s-b))} per ${p.unit} (${Math.round((s-b)/s*100)}% margin).`);
+ if(b!=+p.buy_price)L.push(`Buying price changes from ${kes(p.buy_price)} to ${kes(b)}.`);
+ m.innerHTML=L.join('<br>')}
+async function saveRestock(id,btn){const q=+$('#rq').value,b=$('#rb').value,s=$('#rs').value,x=$('#rx');
+ if(!(q>0))return alert('Enter the quantity received');if(+s<+b&&!confirm('The selling price is below the buying price. Save anyway?'))return;
+ btn.disabled=true;
+ const {error}=await sb.rpc('restock_product',{p_product:id,p_qty:q,p_buy:b===''?null:+b,p_sell:s===''?null:+s,p_expiry:x&&x.value||null});
+ if(error){btn.disabled=false;return alert(error.message)}closeEdit();await load();saveCache();render();toast('✓ Delivery saved')}
 async function addCustomer(){const n=$('#cn').value.trim();if(!n)return alert('Enter a name');const ph=$('#cp').value.trim();if(ph&&S.customers.some(c=>c.phone===ph))return alert('A customer with this phone number already exists');
  const {error}=await sb.from('customers').insert({shop_id:S.shop.id,name:n,phone:$('#cp').value.trim()||null});
  if(error)return alert(error.message);await load();render()}
@@ -551,8 +586,124 @@ async function adminType(id){const s=S.adm.find(x=>x.id==id);
  const t=prompt('Shop type: '+TYPES.map(x=>x[0]).join(', '),s.type);if(t===null||t.trim()==s.type)return;
  const {error}=await sb.rpc('admin_set_shop_type',{p_shop:id,p_type:t.trim().toLowerCase()});if(error)return alert(error.message);loadAdmin()}
 
+// ---------- Import products from Excel (.xlsx) or CSV ----------
+// Minimal .xlsx reader (zip + XML) using the browser's own decompression; reads the first sheet.
+async function readXlsx(buf){const dv=new DataView(buf),u8=new Uint8Array(buf),td=new TextDecoder();
+ let e=u8.length-22;while(e>=0&&dv.getUint32(e,true)!==0x06054b50)e--;if(e<0)throw new Error('This is not an Excel (.xlsx) file');
+ const files={};let p=dv.getUint32(e+16,true);
+ for(let i=0,n=dv.getUint16(e+10,true);i<n&&dv.getUint32(p,true)===0x02014b50;i++){const nl=dv.getUint16(p+28,true);
+  files[td.decode(u8.subarray(p+46,p+46+nl))]={m:dv.getUint16(p+10,true),cs:dv.getUint32(p+20,true),off:dv.getUint32(p+42,true)};p+=46+nl+dv.getUint16(p+30,true)+dv.getUint16(p+32,true)}
+ const get=async n=>{const f=files[n];if(!f)return null;const s=f.off+30+dv.getUint16(f.off+26,true)+dv.getUint16(f.off+28,true),d=u8.subarray(s,s+f.cs);
+  if(f.m===0)return td.decode(d);if(typeof DecompressionStream=='undefined')throw new Error('This browser cannot open Excel files. Save the sheet as CSV and import that.');
+  return new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text()};
+ const xml=s=>new DOMParser().parseFromString(s,'application/xml'),tags=(n,t)=>[...n.getElementsByTagName(t)];
+ const ss=[],sx=await get('xl/sharedStrings.xml');if(sx)tags(xml(sx),'si').forEach(si=>ss.push(tags(si,'t').map(t=>t.textContent).join('')));
+ const sheet=files['xl/worksheets/sheet1.xml']?'xl/worksheets/sheet1.xml':Object.keys(files).find(k=>/^xl\/worksheets\/sheet\d+\.xml$/.test(k));
+ if(!sheet)throw new Error('No sheet found in this file');
+ const col=r=>[...r.replace(/\d+/g,'')].reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0)-1;
+ return tags(xml(await get(sheet)),'row').map(r=>{const row=[];tags(r,'c').forEach(c=>{const t=c.getAttribute('t'),v=tags(c,'v')[0];
+  row[col(c.getAttribute('r')||'A')]=t=='s'?ss[+(v&&v.textContent)]:t=='inlineStr'?tags(c,'t').map(x=>x.textContent).join(''):(v?v.textContent:'')});
+  return Array.from(row,x=>x??'')})}
+function readCsv(text){text=text.replace(/^﻿/,'');const first=text.split(/\r?\n/)[0]||'',d=(first.split(';').length>first.split(',').length)?';':',';
+ const rows=[];let row=[],f='',q=false;
+ for(let i=0;i<text.length;i++){const ch=text[i];
+  if(q){if(ch=='"'){if(text[i+1]=='"'){f+='"';i++}else q=false}else f+=ch}
+  else if(ch=='"')q=true;else if(ch==d){row.push(f);f=''}else if(ch=='\n'||ch=='\r'){if(ch=='\r'&&text[i+1]=='\n')i++;row.push(f);rows.push(row);row=[];f=''}else f+=ch}
+ if(f||row.length){row.push(f);rows.push(row)}return rows}
+const IMPORT_COLS={name:['name','product','productname','item','itemname','description','jina','bidhaa'],
+ variant:['variant','size','sizevariant','spec','strength','packsize','colour','color'],category:['category','aina','group','department'],
+ sku:['sku','barcode','skubarcode','code','itemcode','msimbo'],unit:['unit','units','uom','kipimo'],
+ buy:['buyprice','buyingprice','cost','costprice','purchaseprice','beiyakununua'],sell:['sellprice','sellingprice','price','retailprice','beiyakuuza','bei'],
+ qty:['quantity','qty','stock','instock','stockqty','quantityinstock','idadi'],reorder:['reorderat','reorder','reorderlevel','lowstock','minstock','warnat','warnmewhenstockreaches'],
+ expiry:['expiry','expirydate','exp','expires','bestbefore']};
+const num=v=>{const n=parseFloat(String(v).replace(/[^\d.\-]/g,''));return isFinite(n)?n:null};
+function excelDate(v){v=String(v||'').trim();if(!v)return null;if(/^\d{4}-\d{2}-\d{2}/.test(v))return v.slice(0,10);
+ if(/^\d{5}(\.\d+)?$/.test(v))return new Date(Date.UTC(1899,11,30)+(+v)*864e5).toISOString().slice(0,10);
+ const m=v.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:null}
+function showImport(){document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>Import products</h3><p class="lb">Choose an Excel (.xlsx) or CSV file. The first row must be column names, such as <b>Name, Buy price, Sell price, Quantity, Unit</b>. Optional: Size, Category, Barcode, Reorder at, Expiry.<br>Products already in your list (same barcode, or same name and size) are updated; the rest are added.</p>
+ <p><button class="s" onclick="importTemplate()">⬇ Download a template</button></p>
+ <input type="file" id="imf" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onchange="parseImport(this.files[0])">
+ <div id="imp"></div><p><button onclick="closeEdit()" style="width:100%">Close</button></p></div></div>`)}
+function importTemplate(){download('duka-products-template.csv',[['Name','Size','Category','Barcode','Unit','Buy price','Sell price','Quantity','Reorder at','Expiry'],
+ ['Sugar','','Food','','kg',150,180,50,10,''],['Cooking oil','1 L','Food','','bottle',280,320,24,6,'']])}
+async function parseImport(file){const out=$('#imp');if(!file)return;out.innerHTML='<p class="lb">Reading file…</p>';
+ try{const rows=/\.xlsx$/i.test(file.name)?await readXlsx(await file.arrayBuffer()):readCsv(await file.text());
+  const hi=rows.findIndex(r=>r.some(c=>String(c).trim()));if(hi<0)throw new Error('The file is empty');
+  const head=rows[hi].map(h=>String(h).toLowerCase().replace(/[^a-z]/g,'')),ix={};
+  for(const[k,names]of Object.entries(IMPORT_COLS)){const i=head.findIndex(h=>names.includes(h));if(i>=0)ix[k]=i}
+  if(ix.name==null)throw new Error('No "Name" column found. The first row must have column names.');
+  const units=unitsFor(),cell=(r,k)=>ix[k]==null?'':String(r[ix[k]]??'').trim(),errs=[],items=[],seen=new Set();
+  rows.slice(hi+1).forEach((r,n)=>{const name=cell(r,'name');if(!name)return;const line=hi+n+2;
+   const it={name:name.slice(0,120),variant:cell(r,'variant')||null,category:cell(r,'category')||null,sku:cell(r,'sku')||null,
+    unit:cell(r,'unit')||null,buy:num(cell(r,'buy')),sell:num(cell(r,'sell')),qty:num(cell(r,'qty')),reorder:num(cell(r,'reorder')),expiry:excelDate(cell(r,'expiry'))};
+   if(it.qty!=null&&it.qty<0||it.buy!=null&&it.buy<0||it.sell!=null&&it.sell<0)return errs.push(`Row ${line}: negative number`);
+   const key=it.sku?'s:'+it.sku.toLowerCase():'n:'+(it.name+'|'+(it.variant||'')).toLowerCase();if(seen.has(key))return errs.push(`Row ${line}: ${name} appears twice`);seen.add(key);
+   it.match=S.products.find(p=>it.sku&&p.sku&&p.sku.toLowerCase()==it.sku.toLowerCase())||S.products.find(p=>(p.name+'|'+(p.variant||'')).toLowerCase()==(it.name+'|'+(it.variant||'')).toLowerCase());
+   if(it.unit&&!it.match&&!units.includes(it.unit)){const u=units.find(x=>x.toLowerCase()==it.unit.toLowerCase());if(u)it.unit=u}
+   items.push(it)});
+  if(!items.length)throw new Error('No products found under the column names');
+  const add=items.filter(i=>!i.match),upd=items.filter(i=>i.match);
+  if(S.shop.plan=='basic'&&S.products.length+add.length>300)throw new Error(`Your Basic plan allows 300 products. This file would bring you to ${S.products.length+add.length}. Upgrade to Standard for unlimited products.`);
+  S.imp=items;
+  out.innerHTML=`<div class="card"><span class="pn">${add.length} new · ${upd.length} to update</span><small>${ix.qty==null?'No quantity column: stock levels stay as they are.':'Quantities in the file become the stock level (changes are logged).'}</small>
+   ${errs.length?`<small class="low">${errs.length} row(s) skipped: ${esc(errs.slice(0,5).join('; '))}${errs.length>5?'…':''}</small>`:''}</div>
+   ${items.slice(0,8).map(i=>`<div class="row"><div>${esc(i.name)}${i.variant?' · '+esc(i.variant):''}<small>${i.match?'update':'new'} · ${i.sell!=null?kes(i.sell):'no price'}${i.qty!=null?' · '+i.qty+' '+esc(i.unit||(i.match&&i.match.unit)||'pc'):''}</small></div></div>`).join('')}
+   ${items.length>8?`<p class="lb">…and ${items.length-8} more</p>`:''}<button class="p" style="width:100%" onclick="runImport(this)">Import ${items.length} product(s)</button>`}
+ catch(e){S.imp=null;out.innerHTML=`<p class="low">${esc(e.message||e)}</p>`}}
+async function runImport(btn){const items=S.imp;if(!items)return;btn.disabled=true;btn.textContent='Importing…';const sid=S.shop.id,moves=[];
+ try{const add=items.filter(i=>!i.match).map(i=>({shop_id:sid,name:i.name,variant:i.variant,category:i.category,sku:i.sku,unit:i.unit||'pc',
+   buy_price:i.buy||0,sell_price:i.sell||0,stock_qty:i.qty||0,low_stock_at:i.reorder??5,expiry:i.expiry}));
+  for(let k=0;k<add.length;k+=200){const {error}=await sb.from('products').insert(add.slice(k,k+200));
+   if(error)throw new Error(/products_shop_sku/.test(error.message)?'A barcode in the file is already used by another product':error.message)}
+  const upd=items.filter(i=>i.match);
+  for(let k=0;k<upd.length;k+=10)await Promise.all(upd.slice(k,k+10).map(async i=>{const p=i.match,u={};
+   if(i.category)u.category=i.category;if(i.sku)u.sku=i.sku;if(i.unit)u.unit=i.unit;if(i.buy!=null)u.buy_price=i.buy;if(i.sell!=null)u.sell_price=i.sell;
+   if(i.reorder!=null)u.low_stock_at=i.reorder;if(i.expiry)u.expiry=i.expiry;if(i.qty!=null&&i.qty!=+p.stock_qty){u.stock_qty=i.qty;moves.push({shop_id:sid,product_id:p.id,change:rq(i.qty-p.stock_qty),reason:'import'})}
+   if(!Object.keys(u).length)return;const {error}=await sb.from('products').update(u).eq('id',p.id);if(error)throw new Error(i.name+': '+error.message)}));
+  if(moves.length){const {error}=await sb.from('stock_movements').insert(moves);if(error)console.warn(error)}
+  closeEdit();await load();saveCache();render();alert(`Imported ✔ ${add.length} added, ${upd.length} updated.`)}
+ catch(e){btn.disabled=false;btn.textContent='Try again';alert('Import stopped: '+(e.message||e)+'\nProducts saved before the error are kept.');await load();render()}}
+
+// ---------- Stock-take: count the shelf, see what is missing ----------
+const STK=()=>'duka:stocktake:'+S.shop.id;
+function stocktake(){if(!S.products.length)return alert('Add products first');S.stc=lsGet(STK(),true)||{};S.stq='';
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal"><div class="sheet" style="max-height:96vh">
+ <h3>Stock-take</h3><p class="lb">Count what is on the shelf and type the number. Leave blank anything you did not count. Your counts are saved on this phone until you apply them.</p>
+ <input placeholder="Search" oninput="S.stq=this.value;$('#stk').innerHTML=stkList()"><div id="stk">${stkList()}</div>
+ <div class="m"><button onclick="closeEdit()">Close</button><button class="p" onclick="stkReview()">Review counts</button></div></div></div>`)}
+function stkList(){const q=(S.stq||'').toLowerCase();
+ return S.products.filter(p=>!q||[p.name,p.variant,p.category,p.sku].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.category||'').localeCompare(b.category||'')||a.name.localeCompare(b.name))
+  .map(p=>`<div class="row"><div>${pn(p)}<small>System: ${fq(p.stock_qty)} ${esc(p.unit)}${p.category?' · '+esc(p.category):''}</small></div><input style="width:96px;margin:0" type="number" step="any" inputmode="decimal" placeholder="Count" value="${S.stc[p.id]??''}" oninput="stkSet('${p.id}',this.value)"></div>`).join('')||'<p>No products match.</p>'}
+function stkSet(id,v){if(v==='')delete S.stc[id];else S.stc[id]=v;lsSet(STK(),S.stc)}
+function stkReview(){const L=Object.entries(S.stc).map(([id,v])=>{const p=S.products.find(x=>x.id==id);return p&&{p,c:+v,d:rq(+v-p.stock_qty)}}).filter(x=>x&&x.c>=0&&isFinite(x.c));
+ if(!L.length)return alert('Type at least one count');const ch=L.filter(x=>x.d);
+ const miss=ch.filter(x=>x.d<0),extra=ch.filter(x=>x.d>0),vm=r2(miss.reduce((a,x)=>a-x.d*x.p.buy_price,0)),ve=r2(extra.reduce((a,x)=>a+x.d*x.p.buy_price,0));
+ $('#stk').innerHTML=`<div class="g"><div class="card">Counted<b>${L.length}</b><small>${L.length-ch.length} match the system</small></div><div class="card">Missing<b class="${vm?'low':''}">${kes(vm)}</b><small>${miss.length} product(s), at buying price</small></div></div>
+  ${extra.length?`<p class="lb">Extra found: ${kes(ve)} in ${extra.length} product(s).</p>`:''}
+  ${ch.sort((a,b)=>a.d*a.p.buy_price-b.d*b.p.buy_price).map(x=>`<div class="row"><div>${pn(x.p)}<small>System ${fq(x.p.stock_qty)} → counted ${fq(x.c)} ${esc(x.p.unit)}</small></div><b class="${x.d<0?'low':''}">${x.d>0?'+':''}${fq(x.d)} · ${kes(r2(x.d*x.p.buy_price))}</b></div>`).join('')||'<p>Everything you counted matches. 🎉</p>'}
+  ${ch.length?`<button class="p" style="width:100%" onclick="stkApply(this)">Apply ${ch.length} correction(s)</button>`:''}<p><button class="s" onclick="$('#stk').innerHTML=stkList()">← Back to counting</button></p>`}
+async function stkApply(btn){btn.disabled=true;const counts=Object.entries(S.stc).filter(([,v])=>v!==''&&+v>=0).map(([id,v])=>({id,qty:+v}));
+ const {data,error}=await sb.rpc('apply_stocktake',{p_shop:S.shop.id,p_counts:counts});if(error){btn.disabled=false;return alert(error.message)}
+ const r=data&&data[0]||{};lsSet(STK(),'');S.stc={};closeEdit();await load();saveCache();render();
+ alert(`Stock-take saved ✔ ${r.changed||0} product(s) corrected.${+r.value_missing?' Missing: '+kes(r.value_missing)+'.':''}`)}
+
+// ---------- Camera barcode scanning (Android Chrome; other phones can use a scanner or type) ----------
+async function scanInto(inputId,cb){
+ if(!('BarcodeDetector' in window)||!navigator.mediaDevices)return alert('This browser cannot scan with the camera. Use Chrome on Android, a barcode scanner, or type the code.');
+ let det;try{det=new BarcodeDetector({formats:['ean_13','ean_8','upc_a','upc_e','code_128','code_39','qr_code']})}catch(e){det=new BarcodeDetector()}
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" id="scanm"><div class="sheet"><h3>Point the camera at the barcode</h3>
+  <video id="scv" playsinline muted style="width:100%;border-radius:12px;background:#000;max-height:60vh"></video><p><button style="width:100%" onclick="stopScan()">Cancel</button></p></div></div>`);
+ try{S.scs=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}})}catch(e){stopScan();return alert('Camera not allowed. Allow camera access for this site and try again.')}
+ const v=$('#scv');v.srcObject=S.scs;await v.play().catch(()=>{});
+ const tick=async()=>{if(!S.scs)return;try{const r=await det.detect(v);if(r&&r.length){const code=r[0].rawValue;stopScan();try{navigator.vibrate&&navigator.vibrate(60)}catch(e){}
+   if(inputId){const el=$('#'+inputId);if(el)el.value=code}if(cb)cb(code);return}}catch(e){}setTimeout(tick,250)};tick()}
+function stopScan(){if(S.scs){S.scs.getTracks().forEach(t=>t.stop());S.scs=null}const m=$('#scanm');if(m)m.remove()}
+function sellScanned(code){const p=S.products.find(x=>x.sku&&x.sku.toLowerCase()==code.toLowerCase());
+ if(p)return add(p.id);S.q=code;render();alert('No product has barcode '+code+'. Add it in Stock with this barcode.')}
+
 // Actions that change records other than sales need the internet; sales work offline.
-['addProduct','restock','addCustomer','payDebt','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
+['addProduct','restock','saveRestock','showImport','runImport','stkApply','addCustomer','payDebt','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
  .forEach(n=>{const f=window[n];if(typeof f!='function')return;window[n]=function(...a){if(!navigator.onLine)return alert('You are offline. This needs internet. Selling still works offline.');return f.apply(this,a)}});
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 

@@ -152,7 +152,7 @@ function lockedView(){S.inApp=false;
  <p class="lb">You can still download your records:</p>${S.role=='owner'?exportButtons():''}
  ${S.members&&S.members.length>1?shopSwitcher():''}
  <p>${S.admin?'<button onclick="loadAdmin()">Admin</button> ':''}<button onclick="logout()">Log out</button></p></main>`}
-async function logout(){await sb.auth.signOut();S.shop=null;S.members=null;authView()}
+async function logout(){await sb.auth.signOut();S.uid=null;location.reload()}
 
 // ---------- Start-up: works online, and offline from the last saved copy ----------
 const CACHE_KEYS=['members','shop','role','admin','settings','products','customers','days','sales','invites','refs','rep','repPrev','exps','counts','team','perms','email'];
@@ -160,7 +160,11 @@ function saveCache(){if(!S.uid)return;const c={};CACHE_KEYS.forEach(k=>c[k]=S[k]
 async function boot(){
  const {data:{session}}=await sb.auth.getSession();
  if(!session)return authView();
- if(S.rec)return recoverView();S.uid=session.user.id;S.email=session.user.email;
+ if(S.rec)return recoverView();
+ if(S.uid&&S.uid!==session.user.id)return location.reload();
+ S.uid=session.user.id;S.email=session.user.email;
+ // Every start-up begins from a clean shop state, so nothing from an earlier shop or account leaks in.
+ S.shop=null;S.members=null;S.role=null;S.perms=null;S.team=null;S.rep=null;S.repPrev=null;S.exps=null;S.counts=null;S.adm=null;
  try{
   if(!navigator.onLine)throw new Error('offline');
   await sb.rpc('claim_invites');
@@ -589,7 +593,9 @@ function recoverView(){app.innerHTML=`<main class="c"><h1>New password</h1><inpu
 async function setPw(){const v=$('#np').value;if(v.length<8)return alert('Use 8 or more characters');
  const {error}=await sb.auth.updateUser({password:v});if(error)return alert(error.message);
  S.rec=false;alert('Password updated');history.replaceState(null,'',location.pathname);boot()}
-sb.auth.onAuthStateChange(ev=>{if(ev=='PASSWORD_RECOVERY'){S.rec=true;recoverView()}});
+sb.auth.onAuthStateChange((ev,session)=>{if(ev=='PASSWORD_RECOVERY'){S.rec=true;recoverView();return}
+ // Signed out, or a different account signed in from another tab: reload so this tab never shows one account's shop with another's login.
+ if(S.uid&&(ev=='SIGNED_OUT'||(session&&session.user&&session.user.id!==S.uid)))location.reload()});
 
 function chart7(){const days=[];for(let i=6;i>=0;i--)days.push(soon(-i));
  const m0={};S.days.forEach(d=>m0[d.day]=d);
@@ -1120,7 +1126,13 @@ async function adminDelete(id){const s=S.adm.find(x=>x.id==id);if(prompt(`Perman
 // Actions that change records other than sales need the internet; sales work offline.
 ['adminGift','adminReverse','adminPayAgent','adminSwitch','adminSaveAnn','adminTab','saveShop','savePerms','savePw','payHistory','reqDelete','adminDelete','saveExpense','deleteExpense','saveCount','cashCount','addProduct','restock','saveRestock','showImport','runImport','stkApply','saveCustomer','savePayment','customerView','removeCustomer','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
  .forEach(n=>{const f=window[n];if(typeof f!='function')return;window[n]=function(...a){if(!navigator.onLine)return alert('You are offline. This needs internet. Selling still works offline.');return f.apply(this,a)}});
-if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+if('serviceWorker' in navigator){
+ addEventListener('load',()=>navigator.serviceWorker.register('sw.js').then(reg=>setInterval(()=>reg.update().catch(()=>{}),30*60e3)).catch(()=>{}));
+ let hadController=!!navigator.serviceWorker.controller;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!hadController){hadController=true;return}
+  const busy=Object.keys(S.cart||{}).length||document.querySelector('.modal');
+  if(!busy)location.reload();else S.updateReady=true})}
+setInterval(()=>{if(S.updateReady&&!Object.keys(S.cart||{}).length&&!document.querySelector('.modal'))location.reload()},15000);
 
 boot();
 </script></body></html>

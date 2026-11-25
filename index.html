@@ -57,8 +57,9 @@ h1,a{color:var(--accent)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .ib{display:flex;gap:6px;align-items:center}.ib input{flex:1}
 .why{display:grid;gap:8px;margin:8px 0 4px}.why .pn{margin-bottom:2px}
+.sticky{position:sticky;bottom:0;z-index:2;box-shadow:0 -8px 16px var(--bg)}
 .qa3{display:flex;gap:4px}.qa3 input{width:64px;margin:0;padding:8px 6px;font-size:14px}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
-.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on);padding:8px 16px;border-radius:20px;z-index:60;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none}
+.toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on);padding:8px 16px;border-radius:20px;z-index:60;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none}
 @media print{body *{visibility:hidden}#rcpt,#rcpt *{visibility:visible}#rcpt{position:absolute;left:0;top:0;width:58mm;padding:0;border-radius:0;font-size:11px}@page{margin:3mm}}
 </style></head><body>
 <div id="app"></div>
@@ -693,8 +694,9 @@ function qaPick(){const have=new Set(S.products.map(p=>(p.name+'|'+(p.variant||'
  <div id="qal">${L.map(([n,v,u],i)=>{const k=n+'|'+v,x=S.qa[k]||{};return`<div class="row" data-n="${esc((n+' '+v).toLowerCase())}"><div style="flex:1">${esc(n)}${v?' · '+esc(v):''}<small>per ${esc(u)}</small></div>
   <div class="qa3"><input type="number" step="any" inputmode="decimal" placeholder="Buy" value="${x.b??''}" oninput="qaSet('${esc(k)}','b',this.value)"><input type="number" step="any" inputmode="decimal" placeholder="Sell" value="${x.s??''}" oninput="qaSet('${esc(k)}','s',this.value)"><input type="number" step="any" inputmode="decimal" placeholder="Qty" value="${x.q??''}" oninput="qaSet('${esc(k)}','q',this.value)"></div></div>`}).join('')||'<p>You already have all the common items. Use "Type a list" for others.</p>'}</div>
  <p class="lb">Missing something? Use <a href="#" onclick="quickAdd('type');return false">Type a list</a>.</p>
- <button class="p" style="width:100%" onclick="qaPickSave(this)">Save products</button>`}
-function qaSet(k,f,v){S.qa[k]=S.qa[k]||{};S.qa[k][f]=v}
+ <button class="p sticky" id="qasave" style="width:100%" onclick="qaPickSave(this)">${qaLabel()}</button>`}
+function qaSet(k,f,v){S.qa[k]=S.qa[k]||{};S.qa[k][f]=v;const b=$('#qasave');if(b)b.textContent=qaLabel()}
+const qaLabel=()=>{const n=Object.values(S.qa||{}).filter(x=>+x.s>0).length;return n?`Save ${n} product(s)`:'Save products'}
 function qaPickSave(btn){const items=[];
  for(const[n,v,u,c]of catalog()){const x=S.qa[n+'|'+v];if(!x||!(+x.s>0))continue;
   items.push({name:n,variant:v||null,category:c,sku:null,unit:unitsFor().includes(u)?u:unitsFor()[0],buy:+x.b>0?+x.b:null,sell:+x.s,qty:+x.q>0?+x.q:null,reorder:null,expiry:null,match:null})}
@@ -754,19 +756,20 @@ const STK=()=>'duka:stocktake:'+S.shop.id;
 function stocktake(){if(!S.products.length)return alert('Add products first');S.stc=lsGet(STK(),true)||{};S.stq='';
  document.body.insertAdjacentHTML('beforeend',`<div class="modal"><div class="sheet" style="max-height:96vh">
  <h3>Stock-take</h3><p class="lb">Count what is on the shelf and type the number. Leave blank anything you did not count. Your counts are saved on this phone until you apply them.</p>
- <input placeholder="Search" oninput="S.stq=this.value;$('#stk').innerHTML=stkList()"><div id="stk">${stkList()}</div>
- <div class="m"><button onclick="closeEdit()">Close</button><button class="p" onclick="stkReview()">Review counts</button></div></div></div>`)}
+ <input id="stks" placeholder="Search" oninput="S.stq=this.value;$('#stk').innerHTML=stkList()"><div id="stk">${stkList()}</div>
+ <div class="m"><button onclick="closeEdit()">Close</button><button class="p" id="stkr" onclick="stkReview()">Review counts</button></div></div></div>`)}
+function stkMode(review){const a=$('#stks'),b=$('#stkr');if(a)a.style.display=review?'none':'';if(b)b.style.display=review?'none':''}
 function stkList(){const q=(S.stq||'').toLowerCase();
  return S.products.filter(p=>!q||[p.name,p.variant,p.category,p.sku].join(' ').toLowerCase().includes(q)).sort((a,b)=>(a.category||'').localeCompare(b.category||'')||a.name.localeCompare(b.name))
   .map(p=>`<div class="row"><div>${pn(p)}<small>System: ${fq(p.stock_qty)} ${esc(p.unit)}${p.category?' · '+esc(p.category):''}</small></div><input style="width:96px;margin:0" type="number" step="any" inputmode="decimal" placeholder="Count" value="${S.stc[p.id]??''}" oninput="stkSet('${p.id}',this.value)"></div>`).join('')||'<p>No products match.</p>'}
 function stkSet(id,v){if(v==='')delete S.stc[id];else S.stc[id]=v;lsSet(STK(),S.stc)}
 function stkReview(){const L=Object.entries(S.stc).map(([id,v])=>{const p=S.products.find(x=>x.id==id);return p&&{p,c:+v,d:rq(+v-p.stock_qty)}}).filter(x=>x&&x.c>=0&&isFinite(x.c));
- if(!L.length)return alert('Type at least one count');const ch=L.filter(x=>x.d);
+ if(!L.length)return alert('Type at least one count');const ch=L.filter(x=>x.d);stkMode(true);
  const miss=ch.filter(x=>x.d<0),extra=ch.filter(x=>x.d>0),vm=r2(miss.reduce((a,x)=>a-x.d*x.p.buy_price,0)),ve=r2(extra.reduce((a,x)=>a+x.d*x.p.buy_price,0));
  $('#stk').innerHTML=`<div class="g"><div class="card">Counted<b>${L.length}</b><small>${L.length-ch.length} match the system</small></div><div class="card">Missing<b class="${vm?'low':''}">${kes(vm)}</b><small>${miss.length} product(s), at buying price</small></div></div>
   ${extra.length?`<p class="lb">Extra found: ${kes(ve)} in ${extra.length} product(s).</p>`:''}
   ${ch.sort((a,b)=>a.d*a.p.buy_price-b.d*b.p.buy_price).map(x=>`<div class="row"><div>${pn(x.p)}<small>System ${fq(x.p.stock_qty)} → counted ${fq(x.c)} ${esc(x.p.unit)}</small></div><b class="${x.d<0?'low':''}">${x.d>0?'+':''}${fq(x.d)} · ${kes(r2(x.d*x.p.buy_price))}</b></div>`).join('')||'<p>Everything you counted matches. 🎉</p>'}
-  ${ch.length?`<button class="p" style="width:100%" onclick="stkApply(this)">Apply ${ch.length} correction(s)</button>`:''}<p><button class="s" onclick="$('#stk').innerHTML=stkList()">← Back to counting</button></p>`}
+  ${ch.length?`<button class="p" style="width:100%" onclick="stkApply(this)">Apply ${ch.length} correction(s)</button>`:''}<p><button class="s" onclick="stkMode(false);$('#stk').innerHTML=stkList()">← Back to counting</button></p>`}
 async function stkApply(btn){btn.disabled=true;const counts=Object.entries(S.stc).filter(([,v])=>v!==''&&+v>=0).map(([id,v])=>({id,qty:+v}));
  const {data,error}=await sb.rpc('apply_stocktake',{p_shop:S.shop.id,p_counts:counts});if(error){btn.disabled=false;return alert(error.message)}
  const r=data&&data[0]||{};lsSet(STK(),'');S.stc={};closeEdit();await load();saveCache();render();

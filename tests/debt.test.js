@@ -34,7 +34,7 @@ const R=[];const check=(n,ok,x='')=>R.push(`${ok?'PASS':'FAIL'}  ${n}${x?'  ('+x
     else if(t=='debt_payments')data=db.pays.filter(x=>x.customer_id==fv('customer_id'));
     return Promise.resolve({data,error:null}).then(res,rej)}};return api};
   sb.rpc=async()=>({data:[],error:null});
-  S.uid='u1';S.role='owner';S.settings={};S.shop={id:'shop1',name:'Test Duka',type:'general',plan:'trial',paid_until:'2099-01-01'};S.members=[{role:'owner',shops:S.shop}];S.tab='debts';
+  S.uid='u1';S.role='owner';S.settings={};S.shop={ui_mode:'full',id:'shop1',name:'Test Duka',type:'general',plan:'trial',paid_until:'2099-01-01'};S.members=[{role:'owner',shops:S.shop}];S.tab='debts';
   return load().then(()=>render())});
  // Debts overview
  const main=await page.locator('main').innerText();

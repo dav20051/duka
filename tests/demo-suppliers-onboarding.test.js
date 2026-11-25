@@ -13,8 +13,11 @@ const R = []; const check = (n, ok, x = '') => R.push(`${ok ? 'PASS' : 'FAIL'}  
   await page.click('button:has-text("Try a demo shop")'); await page.waitForSelector('nav');
   let m = await page.locator('main').innerText();
   check('demo opens on Today with banner', /Demo shop/.test(m) && /Habari, Mama Wanjiku Shop/.test(m));
-  check('demo has sales and profit', /Sales\s*KES [1-9]/.test(m) && /Net profit/.test(m) && /You owe suppliers\s*KES 3,000/.test(m), (m.match(/Sales\s*KES [\d,]+/) || [])[0]);
+  check('demo has sales and profit (simple)', /Sales today\s*KES [1-9]/.test(m) && /Profit today/.test(m), (m.match(/Sales today\s*KES [\d,]+/) || [])[0]);
   check('checklist hidden in demo', !/Get started/.test(m));
+  check('demo starts in Simple mode', await page.locator('text=Sales today').count() === 1);
+  await page.evaluate(() => setMode('full')); await page.waitForTimeout(300);
+  m = await page.locator('main').innerText(); check('full mode: net profit and suppliers', /Net profit/.test(m) && /You owe suppliers\s*KES 3,000/.test(m));
   // Sell in the demo
   await page.click('nav button:has-text("Sell")'); await page.locator('#pl .row', { hasText: 'Bread' }).click(); await page.click('button:has-text("Sell ·")');
   await page.waitForSelector('text=Sale saved'); check('demo sale makes a receipt', /Bread/.test(await page.locator('#rcpt').innerText()));

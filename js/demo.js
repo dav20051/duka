@@ -150,7 +150,7 @@ function startDemo() {
   sb.functions.invoke = async () => ({ error: { message: be.notInDemo.error.message, context: { json: async () => ({ error: be.notInDemo.error.message }) } } });
   sb.auth.signOut = async () => exitDemo();
   sb.auth.updateUser = async () => be.notInDemo; sb.auth.signInWithPassword = async () => be.notInDemo;
-  S.shop = { id: DEMO_SHOP_ID, name: 'Mama Wanjiku Shop', phone: '0712000000', type: 'general', plan: 'standard', paid_until: '2099-12-31', referral_code: 'DEMO01', pay_type: 'till', pay_number: '123456', receipt_footer: 'Karibu tena!', kra_pin: null };
+  S.shop = { id: DEMO_SHOP_ID, name: 'Mama Wanjiku Shop', phone: '0712000000', type: 'general', plan: 'standard', paid_until: '2099-12-31', referral_code: 'DEMO01', pay_type: 'till', pay_number: '123456', receipt_footer: 'Karibu tena!', kra_pin: null, ui_mode: 'simple' };
   S.members = [{ role: 'owner', shops: S.shop }]; S.tab = 'today';
   return load().then(() => render());
 }

@@ -51,6 +51,8 @@ let REF_FROM_LINK=null;
 try{const r=new URLSearchParams(location.search).get('ref');if(r&&/^[A-Za-z0-9]{3,12}$/.test(r)){REF_FROM_LINK=r.toUpperCase();lsSet('duka:ref',{code:REF_FROM_LINK,at:Date.now()})}}catch(e){}
 function savedRef(){const v=lsGet('duka:ref',true);if(!v||typeof v!='object'||!v.code||Date.now()-v.at>30*864e5){lsSet('duka:ref','');return''}return v.code}
 const S={tab:'sell',cart:{},method:'cash',cust:'',q:'',products:[],customers:[],days:[]};
+// Simple mode (default): only the everyday screens. Full mode shows every tool. Chosen by the owner, per shop.
+const isSimple=()=>!S.shop||S.shop.ui_mode!=='full';
 // App shortcuts and links can open a tab directly, e.g. ./#debts
 try{const h=location.hash.slice(1);if(['sell','stock','debts','today','more'].includes(h))S.tab=h}catch(e){}
 const today=()=>new Date().toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'});
@@ -107,7 +109,7 @@ async function boot(){
   if(!navigator.onLine)throw new Error('offline');
   await sb.rpc('claim_invites');
   const [ad,st,mb]=await Promise.all([sb.rpc('am_i_admin'),sb.rpc('app_settings'),
-   sb.from('shop_members').select('role,shops(id,name,phone,paid_until,type,plan,parent_id,referral_code,kra_pin,pay_type,pay_number,pay_account,receipt_footer,deletion_requested_at)').eq('user_id',S.uid)]);
+   sb.from('shop_members').select('role,shops(id,name,phone,paid_until,type,plan,parent_id,referral_code,kra_pin,pay_type,pay_number,pay_account,receipt_footer,deletion_requested_at,ui_mode)').eq('user_id',S.uid)]);
   if(mb.error)throw mb.error;
   S.admin=ad.data===true;S.settings=st.data||{};
   S.members=(mb.data||[]).filter(m=>m.shops).sort((a,b)=>(a.shops.parent_id?1:0)-(b.shops.parent_id?1:0)||a.shops.name.localeCompare(b.shops.name));
@@ -127,7 +129,7 @@ async function boot(){
   CACHE_KEYS.forEach(k=>S[k]=c[k]);S.offline=true;
  }
  render();syncQueue()}
-async function load(){const sid=S.shop.id;
+async function load(){const sid=S.shop.id;if(isSimple())S.per='today';
  const [p,c,d,sl,si]=await Promise.all([
   sb.from('products').select('*').eq('shop_id',sid).eq('active',true).order('name'),
   sb.from('customer_balances').select('*').eq('shop_id',sid).order('name'),

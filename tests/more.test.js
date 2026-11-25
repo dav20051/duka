@@ -18,7 +18,7 @@ const R=[];const check=(n,ok,x='')=>R.push(`${ok?'PASS':'FAIL'}  ${n}${x?'  ('+x
    insert(r){st.op='insert';st.p=r;return api},update(u){st.op='update';st.p=u;return api},delete(){st.op='delete';return api},
    then(res,rej){let data=[];if(st.op=='update'&&t=='shops')db.shopUpd=st.p;if(st.op=='update'&&t=='staff_invites')db.inv[0].perms=st.p.perms;
     if(st.op=='select'&&t=='staff_invites')data=db.inv;return Promise.resolve({data,error:null}).then(res,rej)}};return api};
-  S.uid='u1';S.email='owner@x.com';S.role='owner';S.settings={};S.shop={id:'shop1',name:'Test Duka',type:'general',plan:'standard',paid_until:'2099-01-01',referral_code:'ABC123'};S.members=[{role:'owner',shops:S.shop}];S.tab='more';
+  S.uid='u1';S.email='owner@x.com';S.role='owner';S.settings={};S.shop={ui_mode:'full',id:'shop1',name:'Test Duka',type:'general',plan:'standard',paid_until:'2099-01-01',referral_code:'ABC123'};S.members=[{role:'owner',shops:S.shop}];S.tab='more';
   return load().then(()=>render())});
  let m=await page.locator('main').innerText();
  check('More shows shop details, payments, account, delete',/How customers pay you/.test(m)&&/Subscription payments/.test(m)&&/owner@x.com/.test(m)&&/Delete my shop/.test(m));

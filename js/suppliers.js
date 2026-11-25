@@ -91,7 +91,7 @@ async function supplierPage(id) {
 
 // Delivery form: optional supplier and what was paid now
 function deliverySupplierFields() {
-  if (S.role != 'owner') return '';
+  if (S.role != 'owner' || isSimple()) return '';
   return `<label class="lb">Supplier (optional)</label><select id="rsu" onchange="if(this.value=='__new'){this.value='';supplierForm(null,id=>{const p=S.rsp;restock(p.id);setTimeout(()=>{$('#rsu').value=id;rsSup()},60)})}else rsSup()">
    <option value="">No supplier</option><option value="__new">+ New supplier</option>${activeSuppliers().map((x) => `<option value="${x.supplier_id}">${esc(x.name)}</option>`).join('')}</select>
   <div id="rsp" style="display:none"><div class="g"><div><label class="lb">Paid now (KES)</label><input id="rpa" type="number" inputmode="numeric" step="any" placeholder="All of it"></div>

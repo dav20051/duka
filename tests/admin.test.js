@@ -47,7 +47,7 @@ const R=[];const check=(n,ok,x='')=>R.push(`${ok?'PASS':'FAIL'}  ${n}${x?'  ('+x
  check('announcement saved',await page.evaluate(()=>__db.settings.announcement.message=='New: stock-take is here!'&&__db.settings.announcement.active));
  await page.locator('label.row',{hasText:'SMS debt'}).locator('input').check();await page.waitForTimeout(200);check('SMS switch saved',await page.evaluate(()=>__db.settings.sms_enabled===true));
  // Banner in a shop view
- await page.evaluate(()=>{S.shop={id:'x',name:'X',type:'general',plan:'standard',paid_until:'2099-01-01'};S.role='owner';S.products=[];S.customers=[];S.sales=[];S.rep=null;S.tab='sell';render()});
+ await page.evaluate(()=>{S.shop={ui_mode:'full',id:'x',name:'X',type:'general',plan:'standard',paid_until:'2099-01-01'};S.role='owner';S.products=[];S.customers=[];S.sales=[];S.rep=null;S.tab='sell';render()});
  check('banner shows in app',/📢 New: stock-take is here!/.test(await page.locator('main').innerText()));
  await page.click('.ob button:has-text("✕")');check('banner can be closed',!/stock-take is here/.test(await page.locator('main').innerText()));
  check('no JavaScript errors',errs.length===0,errs.join(' | '));

@@ -6,7 +6,7 @@ const { chromium } = require('playwright');
  await page.route('**/*supabase.co/**',r=>r.fulfill({status:200,contentType:'application/json',body:'[]'}));
  await page.goto(BASE);await page.waitForSelector('#em');
  // A tab that was showing a staff shop, then the login changes to another account
- await page.evaluate(()=>{S.uid='staff-user';S.shop={id:'x',name:'admin shop'};S.role='staff';window.__marker=1;
+ await page.evaluate(()=>{S.uid='staff-user';S.shop={ui_mode:'full',id:'x',name:'admin shop'};S.role='staff';window.__marker=1;
   sb.auth.getSession=async()=>({data:{session:{user:{id:'admin-user',email:'a@x.com'}}}})});
  const nav=page.waitForNavigation({timeout:5000}).then(()=>true).catch(()=>false);
  await page.evaluate(()=>{boot()});

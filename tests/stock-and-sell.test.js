@@ -54,7 +54,7 @@ const check = (name, ok, extra = '') => results.push(`${ok ? 'PASS' : 'FAIL'}  $
       return { data: [], error: null };
     };
     S.uid = 'u1'; S.role = 'owner'; S.admin = false; S.settings = {};
-    S.shop = { id: 'shop1', name: 'Test Duka', type: 'general', plan: 'trial', paid_until: '2099-01-01', referral_code: 'ABC123' };
+    S.shop = {ui_mode:'full',  id: 'shop1', name: 'Test Duka', type: 'general', plan: 'trial', paid_until: '2099-01-01', referral_code: 'ABC123' };
     S.members = [{ role: 'owner', shops: S.shop }];
     S.tab = 'stock';
     return load().then(() => render());

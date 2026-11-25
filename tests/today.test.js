@@ -26,7 +26,7 @@ const R=[];const check=(n,ok,x='')=>R.push(`${ok?'PASS':'FAIL'}  ${n}${x?'  ('+x
      if(t=='products')data=[{id:'p1',name:'Sugar',unit:'kg',stock_qty:3,low_stock_at:10,buy_price:150,sell_price:180,active:true},{id:'p2',name:'Oil',variant:'1L',unit:'bottle',stock_qty:2,low_stock_at:6,buy_price:280,sell_price:320,active:true}];
      if(t=='customer_balances')data=[{customer_id:'c1',name:'Jane',balance:440,active:true}]}
     return Promise.resolve({data,error:null}).then(res,rej)}};return api};
-  S.uid='u1';S.role='owner';S.settings={};S.shop={id:'shop1',name:'Test Duka',type:'general',plan:'standard',paid_until:'2099-01-01',referral_code:'ABC123'};S.members=[{role:'owner',shops:S.shop}];S.tab='today';
+  S.uid='u1';S.role='owner';S.settings={};S.shop={ui_mode:'full',id:'shop1',name:'Test Duka',type:'general',plan:'standard',paid_until:'2099-01-01',referral_code:'ABC123'};S.members=[{role:'owner',shops:S.shop}];S.tab='today';
   return load().then(()=>render())});
  let m=await page.locator('main').innerText();
  check('Today: sales with comparison',/Sales\s*KES 1,080[\s\S]*↑ 20% vs last/.test(m));

@@ -1,0 +1,41 @@
+// Browser test: Simple mode (default), the Simple/Full switch and the "How do I…?" help.
+// Uses the in-browser demo shop; no real data is touched. Run all tests with: npm test
+const BASE = process.env.BASE_URL || 'http://127.0.0.1:8765/';
+const { chromium } = require('playwright');
+const R = []; const check = (n, ok, x = '') => R.push(`${ok ? 'PASS' : 'FAIL'}  ${n}${x ? '  (' + x + ')' : ''}`);
+(async () => {
+  const b = await chromium.launch(); const page = await b.newPage({ viewport: { width: 390, height: 844 } }); const errs = [];
+  page.on('pageerror', (e) => errs.push(e.message)); page.on('dialog', (d) => d.accept());
+  await page.route('**/*supabase.co/**', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await page.goto(BASE + '?demo=1'); await page.waitForSelector('nav');
+  let m = await page.locator('main').innerText();
+  check('Today (simple): 4 big numbers', /Sales today/.test(m) && /Money in/.test(m) && /Owed to you/.test(m) && /Profit today/.test(m));
+  check('Today (simple): no period buttons, cash check, expenses or charts', !/This week/.test(m) && !/Cash in the drawer/.test(m) && !/\+ Expense/.test(m) && !/Sales by payment/.test(m) && !/Top sellers/.test(m));
+  check('Today (simple): summary, recent sales and running low stay', /Send today's summary/.test(m) && /Recent sales/.test(m) && /Running low/.test(m));
+  await page.click('nav button:has-text("Stock")'); m = await page.locator('main').innerText();
+  check('Stock (simple): only Quick add', /Quick add/.test(m) && !/Stock-take/.test(m) && !/Excel/.test(m) && !/Scan to add/.test(m) && !/A to Z/.test(m));
+  await page.locator('#stl .row', { hasText: 'Salt' }).locator('button:has-text("+ Stock")').click();
+  check('Delivery (simple): no supplier fields', (await page.locator('#rsu').count()) === 0);
+  await page.click('.sheet button:has-text("Cancel")');
+  await page.click('nav button:has-text("Debts")'); m = await page.locator('main').innerText();
+  check('Debts (simple): customers only', /Add customer/.test(m) && !/You owe suppliers/.test(m));
+  await page.click('nav button:has-text("Sell")');
+  check('Sell: bigger product rows', await page.locator('#pl .row').first().evaluate((el) => el.getBoundingClientRect().height >= 58));
+  await page.click('nav button:has-text("More")'); m = await page.locator('main').innerText();
+  check('More: help and Simple mode switch', /How do I…\?/.test(m) && /Simple mode/.test(m) && /Show all tools/.test(m));
+  await page.locator('details', { hasText: 'How do I sell on credit' }).locator('summary').click();
+  check('Help answer opens', /choose Debt under the cart/.test(await page.locator('details[open]').innerText()));
+  await page.click('button:has-text("Show all tools")'); await page.waitForTimeout(300);
+  await page.click('nav button:has-text("Today")'); m = await page.locator('main').innerText();
+  check('Full mode shows every tool again', /This week/.test(m) && /Cash in the drawer/.test(m) && /\+ Expense/.test(m) && /Net profit/.test(m));
+  await page.click('nav button:has-text("More")'); await page.click('button:has-text("Make it simple")'); await page.waitForTimeout(300);
+  await page.click('nav button:has-text("Today")');
+  check('Back to Simple', /Sales today/.test(await page.locator('main').innerText()) && !/This week/.test(await page.locator('main').innerText()));
+  await page.evaluate(() => { S.role = 'staff'; go('more'); });
+  check('Staff do not see the mode switch', !/Show all tools/.test(await page.locator('main').innerText()));
+  await page.evaluate(() => localStorage.setItem('lang', 'sw')); await page.goto(BASE + '?demo=1'); await page.waitForSelector('nav');
+  m = await page.locator('main').innerText(); check('Kiswahili: simple Today', /Mauzo ya leo/.test(m) && /Unadai/.test(m));
+  await page.click('nav button:has-text("Zaidi")'); check('Kiswahili: help', /Nifanyeje…\?/.test(await page.locator('main').innerText()));
+  check('no JavaScript errors', errs.length === 0, errs.join(' | '));
+  console.log(R.join('\n')); await b.close(); if (R.some((l) => l.startsWith('FAIL'))) process.exitCode = 1;
+})().catch((e) => { console.log(R.join('\n')); console.log('CRASH', e.message.split('\n')[0]); process.exit(1); });

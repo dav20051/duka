@@ -26,7 +26,9 @@
     'No products. Add some in Stock.': 'Hakuna bidhaa. Ongeza kwenye Stoo.',
     'Sale saved ✔': 'Mauzo yamehifadhiwa ✔', 'Sale saved on this phone ✔': 'Mauzo yamehifadhiwa kwenye simu hii ✔',
     'You are offline. It will sync automatically when you are back online.': 'Huna mtandao. Yatatumwa yenyewe mtandao ukirudi.',
-    'WhatsApp': 'WhatsApp',
+    'WhatsApp': 'WhatsApp', 'Clear cart': 'Futa kikapu', 'Clear the cart?': 'Futa kikapu?', 'By KES': 'Kwa pesa',
+    'Customer gave (optional)': 'Mteja ametoa (si lazima)', 'Change': 'Chenji',
+    'Set a selling price for this product first': 'Weka bei ya kuuza ya bidhaa hii kwanza',
     // Stock
     'Add product': 'Ongeza bidhaa', 'Buy price': 'Bei ya kununua', 'Sell price': 'Bei ya kuuza',
     'Quantity in stock': 'Idadi iliyopo', 'Warn me when stock reaches': 'Nijulishe stoo ikifika',
@@ -88,6 +90,8 @@
     [/^Pay (KES .+)$/, 'Lipa $1'],
     [/^Payment received ✔ Paid until (.+)$/, 'Malipo yamepokelewa ✔ Imelipwa hadi $1'],
     [/^Your code: (.+)$/, 'Msimbo wako: $1'],
+    [/^Short by (.+)$/, 'Imepungua $1'],
+    [/^How much money\? \(KES\)\n([\s\S]+)$/, 'Kiasi cha pesa? (KES)\n$1'],
   ];
   let lang = 'en';
   try { lang = localStorage.getItem('lang') || 'en'; } catch (e) { /* private mode */ }

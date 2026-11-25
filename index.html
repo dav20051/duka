@@ -53,6 +53,9 @@ h1,a{color:var(--accent)}
 .rc h4{margin:0;text-align:center;font-size:15px}.rc .c{text-align:center}.rc hr{border:0;border-top:1px dashed #999;margin:8px 0}
 .rc .l{display:flex;justify-content:space-between;gap:8px}.rc .t{font-weight:700;font-size:15px}
 .tools{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.row.tap{cursor:pointer;-webkit-tap-highlight-color:transparent}.row.tap:active{outline:2px solid var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
+.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on);padding:8px 16px;border-radius:20px;z-index:60;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none}
 @media print{body *{visibility:hidden}#rcpt,#rcpt *{visibility:visible}#rcpt{position:absolute;left:0;top:0;width:58mm;padding:0;border-radius:0;font-size:11px}@page{margin:3mm}}
 </style></head><body>
 <div id="app"></div>
@@ -243,16 +246,36 @@ const VIEWS={
   ${S.shop.plan=='premium'&&!S.shop.is_branch?`<div class="row"><div>Branches<small>${S.shop.branches||0} of 2 extra shops used</small></div>${(S.shop.branches||0)<2?'<button class="s" onclick="addBranch()">Add branch</button>':''}</div>`:''}`:''}
   <p><small>Shop type: ${esc((TYPES.find(t=>t[0]==S.shop.type)||[0,S.shop.type])[1])}</small></p><div class="tools"><button class="s" onclick="toggleTheme()">🌗 Switch light / dark</button><button class="s" onclick="setLang(LANG=='sw'?'en':'sw')">🌐 ${LANG=='sw'?'English':'Kiswahili'}</button><a href="https://wa.me/${SUPPORT_PHONE}" target="_blank" rel="noopener"><button class="s">💬 Help</button></a></div><button onclick="logout()">Log out</button>`}};
 
+// Tap anywhere on a product to add it.
 function plist(){const q=S.q.toLowerCase();return S.products.filter(p=>(p.name+' '+(p.variant||'')+' '+(p.category||'')+' '+(p.sku||'')).toLowerCase().includes(q)).map(p=>
- `<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${p.stock_qty} ${esc(p.unit)} left</small></div><button class="s" onclick="add('${p.id}')">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
-const total=()=>Object.entries(S.cart).reduce((a,[id,q])=>a+q*price(S.products.find(p=>p.id==id)),0);
-function cartView(){const e=Object.entries(S.cart);if(!e.length)return'';
- return`<h3>Cart</h3>${e.map(([id,q])=>{const p=S.products.find(x=>x.id==id);return`<div class="row"><div>${pn(p)} × ${q} ${esc(p.unit)}<small>${kes(q*price(p))}${q>p.stock_qty?` · <span class="low">only ${p.stock_qty} in stock</span>`:''}</small></div><div><button class="s" onclick="setQty('${id}')">Qty</button> ${S.role=='staff'?'':`<button class="s" onclick="setPrice('${id}')">Price</button>`} <button class="s" onclick="dec('${id}')">−</button></div></div>`}).join('')}
+ `<div class="row tap" onclick="add('${p.id}')"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · ${fq(p.stock_qty)} ${esc(p.unit)} left</small></div><button class="s">+ Add</button></div>`).join('')||'<p>No products. Add some in Stock.</p>'}
+// Loose goods sold by weight, volume or length get quick amounts and "sell by money".
+const LOOSE={kg:[.25,.5,1,2],L:[.25,.5,1,2],m:[.5,1,2,5],g:[100,250,500,1000],ml:[100,250,500,1000]};
+const rq=n=>Math.round(n*1e4)/1e4, r2=n=>Math.round(n*100)/100;
+const fq=n=>{n=+n;return{0.25:'¼',0.5:'½',0.75:'¾'}[n]||String(rq(n))};
+const total=()=>r2(Object.entries(S.cart).reduce((a,[id,q])=>a+q*price(S.products.find(p=>p.id==id)),0));
+function cartView(){const e=Object.entries(S.cart);if(!e.length)return'';const t=total();
+ return`<h3 style="display:flex;justify-content:space-between;align-items:center">Cart <button class="s" onclick="clearCart()">Clear cart</button></h3>${e.map(([id,q])=>{const p=S.products.find(x=>x.id==id),qs=LOOSE[p.unit];return`<div class="row"><div>${pn(p)} × ${fq(q)} ${esc(p.unit)}<small>${kes(r2(q*price(p)))}${q>p.stock_qty?` · <span class="low">only ${fq(p.stock_qty)} in stock</span>`:''}</small>
+  ${qs?`<div class="chips">${qs.map(v=>`<button class="s${+q==v?' on':''}" onclick="setQ('${id}',${v})">${fq(v)}</button>`).join('')}<button class="s" onclick="byMoney('${id}')">By KES</button></div>`:''}</div>
+  <div class="qb"><button class="s" onclick="dec('${id}')">−</button><button class="s" onclick="add('${id}',true)">+</button><button class="s" onclick="setQty('${id}')">Qty</button>${S.role=='staff'?'':`<button class="s" onclick="setPrice('${id}')">Price</button>`}</div></div>`}).join('')}
  <div class="m">${['cash','mpesa','debt'].map(m=>`<button class="${S.method==m?'on':''}" onclick="S.method='${m}';$('#cart').innerHTML=cartView()">${m=='mpesa'?'M-Pesa':m[0].toUpperCase()+m.slice(1)}</button>`).join('')}</div>
  ${S.method=='debt'?`<select onchange="S.cust=this.value"><option value="">Choose customer</option>${S.customers.map(c=>`<option value="${c.customer_id}" ${S.cust==c.customer_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:''}
- <button class="p" style="width:100%" onclick="checkout()">Sell · ${kes(total())}</button>`}
-function add(id){S.cart[id]=(S.cart[id]||0)+1;$('#cart').innerHTML=cartView()}
-function dec(id){if(--S.cart[id]<=0)delete S.cart[id];$('#cart').innerHTML=cartView()}
+ ${S.method=='cash'?`<div class="g"><input id="given" type="number" inputmode="numeric" placeholder="Customer gave (optional)" value="${S.given||''}" oninput="S.given=this.value;$('#chg').innerHTML=changeText()"><div class="card" id="chg" style="padding:10px 12px">${changeText()}</div></div>`:''}
+ <button class="p" style="width:100%" onclick="checkout()">Sell · ${kes(t)}</button>`}
+function changeText(){const g=+S.given,t=total();if(!g)return'<small>Change</small>';
+ return g<t?`<small class="low">Short by ${kes(r2(t-g))}</small>`:`<small>Change</small><b style="font-size:18px">${kes(r2(g-t))}</b>`}
+function toast(m){const d=document.createElement('div');d.className='toast';d.textContent=m;d.setAttribute('data-nt','');document.body.appendChild(d);setTimeout(()=>d.remove(),1100)}
+function add(id,inCart){const p=S.products.find(x=>x.id==id),step=p.unit=='g'||p.unit=='ml'?100:1;
+ S.cart[id]=rq((S.cart[id]||0)+step);$('#cart').innerHTML=cartView();
+ if(!inCart){toast('✓ '+p.name+' · '+fq(S.cart[id])+' '+p.unit);try{navigator.vibrate&&navigator.vibrate(15)}catch(e){}}}
+function dec(id){const p=S.products.find(x=>x.id==id),step=p.unit=='g'||p.unit=='ml'?100:1;
+ S.cart[id]=rq(S.cart[id]-Math.min(step,S.cart[id]>=step?step:S.cart[id]));if(S.cart[id]<=0)delete S.cart[id];$('#cart').innerHTML=cartView()}
+function setQ(id,v){S.cart[id]=v;$('#cart').innerHTML=cartView()}
+// "Nipe sugar ya 50": work out the weight from the money.
+function byMoney(id){const p=S.products.find(x=>x.id==id),pr=price(p);if(!(pr>0))return alert('Set a selling price for this product first');
+ const a=parseFloat(prompt(`How much money? (KES)\n${p.name}: ${kes(pr)} per ${p.unit}`,''));if(!(a>0))return;
+ S.cart[id]=rq(a/pr);$('#cart').innerHTML=cartView()}
+function clearCart(){if(Object.keys(S.cart).length>1&&!confirm('Clear the cart?'))return;S.cart={};S.pr={};S.given='';$('#cart').innerHTML=''}
 async function checkout(){
  const items=Object.entries(S.cart).map(([id,q])=>({p:S.products.find(x=>x.id==id),q}));
  const over=items.filter(({p,q})=>q>p.stock_qty);if(over.length&&!confirm('Not enough stock: '+over.map(({p})=>p.name+' ('+p.stock_qty+' left)').join(', ')+'. Sell anyway?'))return;
@@ -266,7 +289,7 @@ async function checkout(){
  const x={sale,items:rows};let queued=false;
  try{if(!navigator.onLine)throw new Error('offline');await pushSale(x)}
  catch(e){if(!isNet(e))return alert(e.message||e);setQueue([...queue(),x]);queued=true;S.offline=!navigator.onLine}
- S.cart={};S.pr={};S.cust='';S.q='';
+ S.cart={};S.pr={};S.cust='';S.q='';S.given='';
  if(queued){items.forEach(({p,q})=>p.stock_qty=+p.stock_qty-q);S.sales.unshift({...sale,voided:false,sale_items:rows,pending:true});saveCache()}
  else{try{await load();saveCache()}catch(e){}}
  render();showReceipt({...sale,voided:false,sale_items:rows,pending:queued})}

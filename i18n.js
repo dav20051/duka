@@ -59,6 +59,13 @@
     'That barcode is already used by another product': 'Msimbo huo tayari unatumika na bidhaa nyingine',
     'This browser cannot scan with the camera. Use Chrome on Android, a barcode scanner, or type the code.': 'Kivinjari hiki hakiwezi kuskani kwa kamera. Tumia Chrome kwenye Android, skana, au andika msimbo.',
     'Camera not allowed. Allow camera access for this site and try again.': 'Kamera haijaruhusiwa. Ruhusu kamera kwa tovuti hii ujaribu tena.',
+    // Quick add
+    '⚡ Quick add': '⚡ Ongeza haraka', '📷 Scan to add': '📷 Skani kuongeza', '📥 Excel': '📥 Excel', 'Quick add products': 'Ongeza bidhaa haraka',
+    'Pick common items': 'Chagua bidhaa za kawaida', 'Type a list': 'Andika orodha', 'Save products': 'Hifadhi bidhaa', 'Buy': 'Nunua', 'Sell ': 'Uza ',
+    'Check my list': 'Kagua orodha yangu', 'New product': 'Bidhaa mpya', 'Save & scan next': 'Hifadhi & skani nyingine',
+    'Add your stock the quick way': 'Ongeza stoo yako kwa haraka', 'Pick from common items, type a list like an SMS, or scan barcodes.': 'Chagua bidhaa za kawaida, andika orodha kama SMS, au skani misimbo.',
+    'Type a selling price for at least one item': 'Weka bei ya kuuza kwa angalau bidhaa moja', 'Enter the selling price': 'Weka bei ya kuuza',
+    'Missing something? Use': 'Kuna kinachokosekana? Tumia',
     // Debts
     'Add customer': 'Ongeza mteja', 'Phone e.g. 0712345678': 'Simu mf. 0712345678', 'Save customer': 'Hifadhi mteja',
     'Paid': 'Amelipa', 'Remind': 'Kumbusha', 'SMS': 'SMS', 'No debts. 🎉': 'Hakuna madeni. 🎉',
@@ -114,6 +121,9 @@
     [/^Your code: (.+)$/, 'Msimbo wako: $1'],
     [/^Short by (.+)$/, 'Imepungua $1'],
     [/^Stock \((\d+)\)$/, 'Stoo ($1)'],
+    [/^per (.+)$/, 'kwa $1'],
+    [/^Save (\d+) product\(s\)$/, 'Hifadhi bidhaa $1'],
+    [/^Barcode (.+) is not in your shop yet\.$/, 'Msimbo $1 haupo kwenye duka lako bado.'],
     [/^Delivery · (.+)$/, 'Mzigo · $1'],
     [/^Quantity received \((.+)\)$/, 'Idadi iliyopokelewa ($1)'],
     [/^Import (\d+) product\(s\)$/, 'Leta bidhaa $1'],

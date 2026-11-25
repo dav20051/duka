@@ -56,7 +56,8 @@ h1,a{color:var(--accent)}
 .row.tap{cursor:pointer;-webkit-tap-highlight-color:transparent}.row.tap:active{outline:2px solid var(--accent)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .ib{display:flex;gap:6px;align-items:center}.ib input{flex:1}
-.why{display:grid;gap:8px;margin:8px 0 4px}.why .pn{margin-bottom:2px}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
+.why{display:grid;gap:8px;margin:8px 0 4px}.why .pn{margin-bottom:2px}
+.qa3{display:flex;gap:4px}.qa3 input{width:64px;margin:0;padding:8px 6px;font-size:14px}.qb{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;max-width:45%}
 .toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:var(--accent);color:var(--on);padding:8px 16px;border-radius:20px;z-index:60;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,.3);pointer-events:none}
 @media print{body *{visibility:hidden}#rcpt,#rcpt *{visibility:visible}#rcpt{position:absolute;left:0;top:0;width:58mm;padding:0;border-radius:0;font-size:11px}@page{margin:3mm}}
 </style></head><body>
@@ -237,10 +238,10 @@ function render(){S.inApp=true;if(S.tab=='admin'&&!S.adm)S.tab='today';
  app.innerHTML=`<main>${statusBar()}${VIEWS[S.tab]()}</main><nav>${tabs.map(t=>`<button class="${S.tab==t?'on':''}" onclick="go('${t}')">${TABS[t]||'Admin'}</button>`).join('')}</nav>`}
 const VIEWS={
  sell:()=>`<div class="ib"><input placeholder="Search product" value="${esc(S.q)}" oninput="S.q=this.value;$('#pl').innerHTML=plist()" onkeydown="if(event.key=='Enter')scanAdd(this)"><button class="s" onclick="scanInto(null,sellScanned)">📷</button></div><div id="pl">${plist()}</div><div id="cart">${cartView()}</div>`,
- stock:()=>`<div class="tools"><button class="s" onclick="showImport()">📥 Import from Excel</button><button class="s" onclick="stocktake()">📋 Stock-take</button>${S.products.length?`<button class="s" onclick="exportData('stock',this)">📤 Download</button>`:''}</div>
+ stock:()=>`<div class="tools"><button class="p" onclick="quickAdd()">⚡ Quick add</button><button class="s" onclick="scanInto(null,stockScanned)">📷 Scan to add</button><button class="s" onclick="stocktake()">📋 Stock-take</button><button class="s" onclick="showImport()">📥 Excel</button>${S.products.length?`<button class="s" onclick="exportData('stock',this)">📤 Download</button>`:''}</div>
   <h3>Add product</h3><input id="pn" placeholder="Name">${cfg().sku?`<div class="ib"><input id="sk" placeholder="SKU / barcode (optional)"><button class="s" onclick="scanInto('sk')">📷</button></div>`:''}${cfg().cat||cfg().var?`<div class="g">${cfg().cat?'<input id="pc" placeholder="Category (optional)">':''}${cfg().var?`<input id="pv" placeholder="${cfg().varph}">`:''}</div>`:''}<div class="g"><input id="pb" type="number" placeholder="Buy price"><input id="ps" type="number" placeholder="Sell price"></div>
   <div class="g"><input id="pq" type="number" step="any" placeholder="Quantity in stock"><select id="pu">${unitsFor().map(u=>`<option>${u}</option>`).join('')}</select></div><label class="lb">Warn me when stock reaches</label><input id="pr" type="number" step="any" value="5">${cfg().exp?'<label class="lb">Expiry date (earliest on the shelf)</label><input id="px" type="date">':''}<button class="p" onclick="addProduct()">Save product</button>
-  <h3>Stock (${S.products.length})</h3>${S.products.length?`<div class="ib"><input placeholder="Search stock" value="${esc(S.sq||'')}" oninput="S.sq=this.value;$('#stl').innerHTML=stockList()"><button class="s" onclick="scanInto(null,c=>{S.sq=c;render()})">📷</button></div>
+  <h3>Stock (${S.products.length})</h3>${S.products.length?`<div class="ib"><input placeholder="Search stock" value="${esc(S.sq||'')}" oninput="S.sq=this.value;$('#stl').innerHTML=stockList()"><button class="s" onclick="scanInto(null,stockScanned)">📷</button></div>
   <div class="g"><select onchange="S.ss=this.value;$('#stl').innerHTML=stockList()">${[['name','A to Z'],['low','Running low first'],['qty','Least stock first'],['value','Highest stock value'],...(cfg().exp?[['exp','Expiring soonest']]:[])].map(([v,l])=>`<option value="${v}" ${(S.ss||'name')==v?'selected':''}>${l}</option>`).join('')}</select>
   ${cats().length?`<select onchange="S.sc=this.value;$('#stl').innerHTML=stockList()"><option value="">All categories</option>${cats().map(c=>`<option ${S.sc==c?'selected':''}>${esc(c)}</option>`).join('')}</select>`:''}</div>`:''}
   <div id="stl">${stockList()}</div>`,
@@ -341,7 +342,7 @@ function stockList(){const q=(S.sq||'').toLowerCase().trim(),c=S.sc||'',srt=S.ss
   qty:(a,b)=>a.stock_qty-b.stock_qty, value:(a,b)=>b.stock_qty*b.buy_price-a.stock_qty*a.buy_price,
   exp:(a,b)=>(a.expiry||'9999')<(b.expiry||'9999')?-1:1};
  L=L.sort(by[srt]||by.name);
- if(!L.length)return S.products.length?'<p>No products match.</p>':'<p>No products yet. Add one above, or import your list from Excel.</p>';
+ if(!L.length)return S.products.length?'<p>No products match.</p>':`<div class="card"><span class="pn">Add your stock the quick way</span><small>Pick from common items, type a list like an SMS, or scan barcodes.</small><p><button class="p" onclick="quickAdd()">⚡ Quick add</button></p></div>`;
  return L.map(p=>`<div class="row"><div>${pn(p)}<small>${kes(p.sell_price)}/${esc(p.unit)} · <span class="${p.stock_qty<=p.low_stock_at?'low':''}">${fq(p.stock_qty)} ${esc(p.unit)} left</span> · reorder at ${p.low_stock_at}${meta(p)}${srt=='value'?' · value '+kes(r2(p.stock_qty*p.buy_price)):''}</small></div><div><button class="s" onclick="restock('${p.id}')">+ Stock</button> <button class="s" onclick="editProduct('${p.id}')">Edit</button></div></div>`).join('')}
 
 // ---------- Delivery (restock) with current buying price ----------
@@ -671,6 +672,83 @@ async function runImport(btn){const items=S.imp;if(!items)return;btn.disabled=tr
   closeEdit();await load();saveCache();render();alert(`Imported ✔ ${add.length} added, ${upd.length} updated.`)}
  catch(e){btn.disabled=false;btn.textContent='Try again';alert('Import stopped: '+(e.message||e)+'\nProducts saved before the error are kept.');await load();render()}}
 
+// ---------- Quick add: for owners who do not use Excel ----------
+// Common items per shop type: [name, size, unit, category]. Owners type only prices and quantity.
+const CATALOG={
+ general:[['Sugar','','kg','Food'],['Maize flour (unga wa ugali)','2kg','pkt','Food'],['Wheat flour (unga wa ngano)','2kg','pkt','Food'],['Rice','','kg','Food'],['Cooking oil','1L','bottle','Food'],['Cooking fat','500g','pc','Food'],['Salt','1kg','pkt','Food'],['Tea leaves','100g','pkt','Food'],['Milk','500ml','pkt','Food'],['Bread','400g','pc','Food'],['Eggs','','pc','Food'],['Margarine','250g','pc','Food'],['Beans','','kg','Food'],['Green grams (ndengu)','','kg','Food'],['Maize','','kg','Food'],['Tomatoes','','kg','Food'],['Onions','','kg','Food'],['Spaghetti','400g','pkt','Food'],['Soup / beef cubes','','pkt','Food'],['Biscuits','','pkt','Snacks'],['Sweets','','pc','Snacks'],['Soda','500ml','bottle','Drinks'],['Drinking water','500ml','bottle','Drinks'],['Juice','500ml','bottle','Drinks'],['Bar soap','','pc','Household'],['Washing powder','500g','pkt','Household'],['Toilet paper','','pc','Household'],['Matches','','pkt','Household'],['Candles','','pc','Household'],['Paraffin','','L','Household'],['Toothpaste','','pc','Personal care'],['Bathing soap','','pc','Personal care'],['Body lotion','','bottle','Personal care'],['Sanitary pads','','pkt','Personal care'],['Diapers','','pkt','Personal care'],['Razor blades','','pkt','Personal care']],
+ hardware:[['Cement','50kg','bag','Building'],['Nails','3 inch','kg','Fasteners'],['Nails','4 inch','kg','Fasteners'],['Roofing nails','','kg','Fasteners'],['Wood screws','','pkt','Fasteners'],['Binding wire','','kg','Building'],['Iron sheet','gauge 30','sheet','Roofing'],['Ridge cap','','pc','Roofing'],['Timber','2x4','m','Timber'],['Timber','2x2','m','Timber'],['Paint','4L','pc','Paint'],['Paint','1L','pc','Paint'],['Paint brush','3 inch','pc','Paint'],['Sand paper','','sheet','Paint'],['PVC pipe','1/2 inch','length','Plumbing'],['PVC pipe','4 inch','length','Plumbing'],['Tap','1/2 inch','pc','Plumbing'],['Electric cable','1.5mm','m','Electrical'],['Electric cable','2.5mm','m','Electrical'],['Socket','','pc','Electrical'],['Switch','','pc','Electrical'],['Bulb','','pc','Electrical'],['Padlock','','pc','Security'],['Door hinges','','pc','Fittings'],['Wheelbarrow','','pc','Tools'],['Jembe','','pc','Tools'],['Panga','','pc','Tools'],['Spade','','pc','Tools']],
+ pharmacy:[['Paracetamol','500mg','strip','Pain relief'],['Ibuprofen','400mg','strip','Pain relief'],['Amoxicillin','500mg','strip','Antibiotics'],['Cetirizine','10mg','strip','Allergy'],['Antacid tablets','','strip','Stomach'],['ORS sachets','','pkt','Stomach'],['Zinc tablets','20mg','strip','Stomach'],['Cough syrup','100ml','bottle','Cough & cold'],['Multivitamin','','box','Vitamins'],['Folic acid','','strip','Vitamins'],['Dewormer tablets','','pc','Dewormers'],['Antiseptic liquid','100ml','bottle','First aid'],['Bandage','','pc','First aid'],['Cotton wool','','pkt','First aid'],['Plasters','','box','First aid'],['Gloves','','box','First aid'],['Pregnancy test','','pc','Tests'],['Condoms','','pkt','Family planning'],['Sanitary pads','','pkt','Personal care'],['Diapers','','pkt','Personal care'],['Glucose','','pkt','Other'],['Thermometer','','pc','Equipment']],
+ agrovet:[['DAP fertiliser','50kg','bag','Fertiliser'],['CAN fertiliser','50kg','bag','Fertiliser'],['NPK fertiliser','50kg','bag','Fertiliser'],['Urea','50kg','bag','Fertiliser'],['Maize seed','2kg','pkt','Seeds'],['Bean seed','2kg','pkt','Seeds'],['Vegetable seeds','','pkt','Seeds'],['Dairy meal','70kg','bag','Feeds'],['Layers mash','70kg','bag','Feeds'],['Chick mash','70kg','bag','Feeds'],['Growers mash','70kg','bag','Feeds'],['Mineral salt','','kg','Feeds'],['Dewormer','','bottle','Animal health'],['Acaricide (tick dip)','100ml','bottle','Animal health'],['Antibiotic injection','','bottle','Animal health'],['Pesticide','','bottle','Crop protection'],['Herbicide','1L','bottle','Crop protection'],['Fungicide','','pkt','Crop protection'],['Knapsack sprayer','','pc','Equipment'],['Day-old chicks','','pc','Livestock']],
+ boutique:[['T-shirt','','pc','Tops'],['Shirt','','pc','Tops'],['Blouse','','pc','Tops'],['Sweater','','pc','Tops'],['Jacket','','pc','Tops'],['Trousers','','pc','Bottoms'],['Jeans','','pc','Bottoms'],['Skirt','','pc','Bottoms'],['Dress','','pc','Dresses'],['Shoes','','pair','Shoes'],['Sandals','','pair','Shoes'],['Socks','','pair','Accessories'],['Underwear','','pc','Accessories'],['Belt','','pc','Accessories'],['Handbag','','pc','Accessories'],['School uniform','','set','Uniforms']]};
+const catalog=()=>CATALOG[S.shop.type]||CATALOG.general;
+function quickAdd(tab){closeEdit();S.qaTab=tab||S.qaTab||'pick';S.qa=S.qa||{};
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal"><div class="sheet" style="max-height:96vh"><h3>Quick add products</h3>
+ <div class="m"><button class="${S.qaTab=='pick'?'on':''}" onclick="quickAdd('pick')">Pick common items</button><button class="${S.qaTab=='type'?'on':''}" onclick="quickAdd('type')">Type a list</button></div>
+ <div id="qa">${S.qaTab=='pick'?qaPick():qaType()}</div><p><button onclick="closeEdit()" style="width:100%">Close</button></p></div></div>`)}
+// 1) Pick common items
+function qaPick(){const have=new Set(S.products.map(p=>(p.name+'|'+(p.variant||'')).toLowerCase()));
+ const L=catalog().filter(([n,v])=>!have.has((n+'|'+v).toLowerCase()));
+ return`<p class="lb">Type the <b>selling price</b> for each item you sell. Buying price and quantity are optional but give you profit and stock alerts. Items without a selling price are skipped.</p>
+ <input placeholder="Search" oninput="const q=this.value.toLowerCase();document.querySelectorAll('#qal .row').forEach(r=>r.style.display=r.dataset.n.includes(q)?'':'none')">
+ <div id="qal">${L.map(([n,v,u],i)=>{const k=n+'|'+v,x=S.qa[k]||{};return`<div class="row" data-n="${esc((n+' '+v).toLowerCase())}"><div style="flex:1">${esc(n)}${v?' · '+esc(v):''}<small>per ${esc(u)}</small></div>
+  <div class="qa3"><input type="number" step="any" inputmode="decimal" placeholder="Buy" value="${x.b??''}" oninput="qaSet('${esc(k)}','b',this.value)"><input type="number" step="any" inputmode="decimal" placeholder="Sell" value="${x.s??''}" oninput="qaSet('${esc(k)}','s',this.value)"><input type="number" step="any" inputmode="decimal" placeholder="Qty" value="${x.q??''}" oninput="qaSet('${esc(k)}','q',this.value)"></div></div>`}).join('')||'<p>You already have all the common items. Use "Type a list" for others.</p>'}</div>
+ <p class="lb">Missing something? Use <a href="#" onclick="quickAdd('type');return false">Type a list</a>.</p>
+ <button class="p" style="width:100%" onclick="qaPickSave(this)">Save products</button>`}
+function qaSet(k,f,v){S.qa[k]=S.qa[k]||{};S.qa[k][f]=v}
+function qaPickSave(btn){const items=[];
+ for(const[n,v,u,c]of catalog()){const x=S.qa[n+'|'+v];if(!x||!(+x.s>0))continue;
+  items.push({name:n,variant:v||null,category:c,sku:null,unit:unitsFor().includes(u)?u:unitsFor()[0],buy:+x.b>0?+x.b:null,sell:+x.s,qty:+x.q>0?+x.q:null,reorder:null,expiry:null,match:null})}
+ if(!items.length)return alert('Type a selling price for at least one item');
+ if(planFull(items.length))return;S.imp=items;S.qa={};runImport(btn)}
+// 2) Type or paste a list, one product per line, e.g. "Sugar 150 180 50kg"
+const UNIT_WORDS={kg:'kg',kgs:'kg',kilo:'kg',kilos:'kg',g:'g',gm:'g',gms:'g',l:'L',ltr:'L',ltrs:'L',litre:'L',litres:'L',liter:'L',ml:'ml',m:'m',metre:'m',meter:'m',metres:'m',
+ pc:'pc',pcs:'pc',piece:'pc',pieces:'pc',pkt:'pkt',pkts:'pkt',packet:'pkt',packets:'pkt',bag:'bag',bags:'bag',box:'box',boxes:'box',bottle:'bottle',bottles:'bottle',btl:'bottle',
+ dozen:'dozen',doz:'dozen',tray:'tray',trays:'tray',roll:'roll',rolls:'roll',sheet:'sheet',sheets:'sheet',pair:'pair',pairs:'pair',set:'set',sets:'set',strip:'strip',strips:'strip',length:'length',lengths:'length'};
+function parseLine(line){let t=line.replace(/\b(ksh|kshs|kes|sh|shs|bob)\.?\b/gi,' ').replace(/\/=/g,' ').replace(/[@x×]\s*(?=\d)/gi,' ').trim();if(!t)return null;
+ let parts;const commas=t.split(',').map(x=>x.trim());
+ if(commas.length>=2&&commas.slice(1).every(x=>/^[\d.]+\s*[a-z]*$/i.test(x)||!x))parts=[commas[0],...commas.slice(1).filter(Boolean)];
+ else parts=t.replace(/(\d),(\d{3})\b/g,'$1$2').split(/[\s,;]+/).filter(Boolean);
+ // "50 kg" -> "50kg"
+ for(let i=parts.length-1;i>0;i--)if(UNIT_WORDS[parts[i].toLowerCase()]&&/^\d+(\.\d+)?$/.test(parts[i-1])){parts[i-1]+=parts[i];parts.splice(i,1)}
+ const tail=[];
+ while(parts.length>1&&tail.length<3){const m=parts[parts.length-1].match(/^(\d+(?:\.\d+)?)\s*([a-z]*)$/i);if(!m)break;
+  const u=m[2]?UNIT_WORDS[m[2].toLowerCase()]:null;if(m[2]&&!u)break;tail.unshift({n:+m[1],u});parts.pop()}
+ const name=(parts.length?parts.join(' '):'').replace(/\s+/g,' ').replace(/^(?:[-*•]|\d+[.)])\s+/,'').trim();if(!name)return null;
+ let buy=null,sell=null,qty=null,unit=null;const uq=tail.findIndex(x=>x.u);
+ if(uq>=0){qty=tail[uq].n;unit=tail[uq].u;const rest=tail.filter((_,i)=>i!=uq);if(rest.length>=2){buy=rest[0].n;sell=rest[1].n}else if(rest.length==1)sell=rest[0].n}
+ else if(tail.length==3){buy=tail[0].n;sell=tail[1].n;qty=tail[2].n}else if(tail.length==2){sell=tail[0].n;qty=tail[1].n}else if(tail.length==1)sell=tail[0].n;
+ return{name:name.slice(0,120),buy,sell,qty,unit}}
+function qaType(){return`<p class="lb">Write one product per line: <b>name, buying price, selling price, quantity</b>. Like an SMS. You can also paste a list from WhatsApp.</p>
+ <div class="card"><small>Sugar 150 180 50kg<br>Bread 55 60 20<br>Omo 500g 120 140 24pkt<br>Matches 3 5</small><small>3 numbers = buy, sell, quantity · 2 numbers = sell, quantity · 1 number = sell</small></div>
+ <textarea id="qat" rows="8" style="width:100%;padding:12px;margin:8px 0;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--card);color:var(--tx)" placeholder="Sugar 150 180 50kg" oninput="lsSet('duka:qat',this.value)">${esc(lsGet('duka:qat')||'')}</textarea>
+ <button class="p" style="width:100%" onclick="qaCheck()">Check my list</button><div id="qap"></div>`}
+function qaCheck(){const lines=$('#qat').value.split(/\r?\n/),items=[],bad=[],units=unitsFor();
+ lines.forEach((l,i)=>{if(!l.trim())return;const r=parseLine(l);if(!r||r.sell==null)return bad.push(i+1);
+  const unit=r.unit&&units.includes(r.unit)?r.unit:(r.unit||null);
+  const match=S.products.find(p=>p.name.toLowerCase()==r.name.toLowerCase()&&!p.variant);
+  items.push({name:r.name,variant:null,category:null,sku:null,unit,buy:r.buy,sell:r.sell,qty:r.qty,reorder:null,expiry:null,match})});
+ if(!items.length)return $('#qap').innerHTML='<p class="low">No products found. Each line needs a name and at least a selling price, e.g. "Bread 60".</p>';
+ S.imp=items;
+ $('#qap').innerHTML=`${bad.length?`<p class="low">Line(s) ${bad.join(', ')} need a selling price and were skipped.</p>`:''}
+  ${items.map(i=>`<div class="row"><div>${esc(i.name)}<small>${i.match?'update · ':''}buy ${i.buy!=null?kes(i.buy):'-'} · sell ${kes(i.sell)} · qty ${i.qty!=null?i.qty+' '+esc(i.unit||(i.match&&i.match.unit)||'pc'):'-'}</small></div></div>`).join('')}
+  <p class="lb">Check the numbers. If something is wrong, fix the line above and tap Check again.</p>
+  <button class="p" style="width:100%" onclick="if(!planFull(S.imp.filter(i=>!i.match).length)){lsSet('duka:qat','');runImport(this)}">Save ${items.length} product(s)</button>`}
+function planFull(n){if(S.shop.plan=='basic'&&S.products.length+n>300){alert(`Your Basic plan allows 300 products. This would bring you to ${S.products.length+n}. Upgrade to Standard for unlimited products.`);return true}return false}
+// 3) Scan to add: unknown barcodes open a short "new product" form
+function stockScanned(code){const p=S.products.find(x=>x.sku&&x.sku.toLowerCase()==code.toLowerCase());
+ if(p){S.sq=code;render();return}newFromBarcode(code)}
+function newFromBarcode(code){closeEdit();document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet">
+ <h3>New product</h3><p class="lb">Barcode ${esc(code)} is not in your shop yet.</p>
+ <input id="nbn" placeholder="Name"><div class="g"><input id="nbb" type="number" step="any" inputmode="decimal" placeholder="Buy price"><input id="nbs" type="number" step="any" inputmode="decimal" placeholder="Sell price"></div>
+ <div class="g"><input id="nbq" type="number" step="any" inputmode="decimal" placeholder="Quantity in stock"><select id="nbu">${unitsFor().map(u=>`<option>${u}</option>`).join('')}</select></div>
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveFromBarcode('${esc(code)}',this,false)">Save</button><button class="p" onclick="saveFromBarcode('${esc(code)}',this,true)">Save & scan next</button></div></div></div>`);
+ setTimeout(()=>$('#nbn')&&$('#nbn').focus(),50)}
+async function saveFromBarcode(code,btn,next){const n=$('#nbn').value.trim();if(!n)return alert('Enter a name');if(!(+$('#nbs').value>0))return alert('Enter the selling price');
+ if(planFull(1))return;btn.disabled=true;
+ const {error}=await sb.from('products').insert({shop_id:S.shop.id,name:n.slice(0,120),sku:code,buy_price:+$('#nbb').value||0,sell_price:+$('#nbs').value,stock_qty:+$('#nbq').value||0,unit:$('#nbu').value,low_stock_at:5});
+ if(error){btn.disabled=false;return alert(/products_shop_sku/.test(error.message)?'That barcode is already used by another product':error.message)}
+ closeEdit();await load();saveCache();render();toast('✓ '+n+' added');if(next)scanInto(null,stockScanned)}
+
 // ---------- Stock-take: count the shelf, see what is missing ----------
 const STK=()=>'duka:stocktake:'+S.shop.id;
 function stocktake(){if(!S.products.length)return alert('Add products first');S.stc=lsGet(STK(),true)||{};S.stq='';
@@ -706,7 +784,9 @@ async function scanInto(inputId,cb){
    if(inputId){const el=$('#'+inputId);if(el)el.value=code}if(cb)cb(code);return}}catch(e){}setTimeout(tick,250)};tick()}
 function stopScan(){if(S.scs){S.scs.getTracks().forEach(t=>t.stop());S.scs=null}const m=$('#scanm');if(m)m.remove()}
 function sellScanned(code){const p=S.products.find(x=>x.sku&&x.sku.toLowerCase()==code.toLowerCase());
- if(p)return add(p.id);S.q=code;render();alert('No product has barcode '+code+'. Add it in Stock with this barcode.')}
+ if(p)return add(p.id);
+ if(S.role=='owner'&&confirm('No product has barcode '+code+'. Add it to your stock now?'))return newFromBarcode(code);
+ alert('No product has barcode '+code+'. Ask the owner to add it in Stock.')}
 
 // Actions that change records other than sales need the internet; sales work offline.
 ['addProduct','restock','saveRestock','showImport','runImport','stkApply','addCustomer','payDebt','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']

@@ -246,9 +246,11 @@ const VIEWS={
   <div class="g"><select onchange="S.ss=this.value;$('#stl').innerHTML=stockList()">${[['name','A to Z'],['low','Running low first'],['qty','Least stock first'],['value','Highest stock value'],...(cfg().exp?[['exp','Expiring soonest']]:[])].map(([v,l])=>`<option value="${v}" ${(S.ss||'name')==v?'selected':''}>${l}</option>`).join('')}</select>
   ${cats().length?`<select onchange="S.sc=this.value;$('#stl').innerHTML=stockList()"><option value="">All categories</option>${cats().map(c=>`<option ${S.sc==c?'selected':''}>${esc(c)}</option>`).join('')}</select>`:''}</div>`:''}
   <div id="stl">${stockList()}</div>`,
- debts:()=>{const d=S.customers.filter(c=>c.balance>0);return`<h3>Add customer</h3><input id="cn" placeholder="Name"><input id="cp" placeholder="Phone e.g. 0712345678">
-  <button class="p" onclick="addCustomer()">Save customer</button><h3>Who owes you (${kes(d.reduce((a,c)=>a+Number(c.balance),0))})</h3>
-  ${d.map(c=>`<div class="row"><div>${esc(c.name)}<small>${kes(c.balance)}</small></div><div><button class="s" onclick="payDebt('${c.customer_id}')">Paid</button> ${c.phone?`<a href="${esc(wa(c))}" target="_blank" rel="noopener"><button class="s">Remind</button></a>${S.settings&&S.settings.sms_enabled?` <button class="s" onclick="sendSms('${c.customer_id}',this)">SMS</button>`:''}`:''}</div></div>`).join('')||'<p>No debts. 🎉</p>'}<h3>All customers (${S.customers.length})</h3>${S.customers.map(c=>`<div class="row"><div>${esc(c.name)}<small>${esc(c.phone||'')} · owes ${kes(c.balance)}</small></div></div>`).join('')||'<p>No customers yet.</p>'}`},
+ debts:()=>{const d=S.customers.filter(c=>+c.balance>0),tot=d.reduce((a,c)=>a+ +c.balance,0),od=d.filter(c=>ageDays(c)>30),odv=od.reduce((a,c)=>a+ +c.balance,0),all=S.df=='all';
+  return`<div class="tools"><button class="p" onclick="customerForm()">+ Add customer</button></div>
+  <div class="g"><div class="card">Total owed<b>${kes(r2(tot))}</b><small>${d.length} customer(s)</small></div><div class="card">Over 30 days<b class="${odv?'low':''}">${kes(r2(odv))}</b><small>${od.length} customer(s)</small></div></div>
+  <div class="m"><button class="${all?'':'on'}" onclick="S.df='owe';render()">Who owes you</button><button class="${all?'on':''}" onclick="S.df='all';render()">All customers</button></div>
+  ${S.customers.length?`<input placeholder="Search customers" value="${esc(S.dq||'')}" oninput="S.dq=this.value;$('#dl').innerHTML=debtList()">`:''}<div id="dl">${debtList()}</div>`},
  today:()=>{const t=S.days.find(d=>d.day==today())||{},low=S.products.filter(p=>p.stock_qty<=p.low_stock_at);return`${S.members&&S.members.length>1?shopSwitcher():''}<div class="hero"><small>${new Date().toLocaleDateString('en-KE',{weekday:'long',day:'numeric',month:'long',timeZone:'Africa/Nairobi'})}</small><h2>Habari, ${esc(S.shop.name)} 👋</h2></div>
   <div class="g"><div class="card">Sales<b>${kes(t.sales_total)}</b></div><div class="card">Cash in<b>${kes(t.cash_in)}</b></div>
   <div class="card">New debt<b>${kes(t.new_debt)}</b></div>${reports()?`<div class="card">Profit (est.)<b>${kes(t.profit_estimate)}</b></div>`:''}<div class="card">Total owed<b>${kes(owed())}</b><small>${debtors()} customer(s)</small></div>${reports()?`<div class="card">Stock value<b>${kes(stockVal())}</b><small>at cost price</small></div>`:''}</div><p><button class="p" style="width:100%" onclick="shareSummary()">📤 Send today's summary on WhatsApp</button></p>${payMix()}${reports()?chart7()+topSellers():(S.role=='owner'?`<div class="card" style="margin-top:12px"><span class="pn">See your profit, stock value and best sellers</span><small>Included in Standard and Premium.</small><p><button class="s" onclick="showPlans()">Upgrade</button></p></div>`:'')}${recent()}
@@ -272,7 +274,7 @@ function cartView(){const e=Object.entries(S.cart);if(!e.length)return'';const t
   ${qs?`<div class="chips">${qs.map(v=>`<button class="s${+q==v?' on':''}" onclick="setQ('${id}',${v})">${fq(v)}</button>`).join('')}<button class="s" onclick="byMoney('${id}')">By KES</button></div>`:''}</div>
   <div class="qb"><button class="s" onclick="dec('${id}')">−</button><button class="s" onclick="add('${id}',true)">+</button><button class="s" onclick="setQty('${id}')">Qty</button>${S.role=='staff'?'':`<button class="s" onclick="setPrice('${id}')">Price</button>`}</div></div>`}).join('')}
  <div class="m">${['cash','mpesa','debt'].map(m=>`<button class="${S.method==m?'on':''}" onclick="S.method='${m}';$('#cart').innerHTML=cartView()">${m=='mpesa'?'M-Pesa':m[0].toUpperCase()+m.slice(1)}</button>`).join('')}</div>
- ${S.method=='debt'?`<select onchange="S.cust=this.value"><option value="">Choose customer</option>${S.customers.map(c=>`<option value="${c.customer_id}" ${S.cust==c.customer_id?'selected':''}>${esc(c.name)}</option>`).join('')}</select>`:''}
+ ${S.method=='debt'?`<select onchange="if(this.value=='__new'){this.value='';customerForm(null,id=>{S.cust=id;render()})}else{S.cust=this.value;$('#cart').innerHTML=cartView()}"><option value="">Choose customer</option><option value="__new">+ New customer</option>${activeCustomers().map(c=>`<option value="${c.customer_id}" ${S.cust==c.customer_id?'selected':''}>${esc(c.name)}${+c.balance>0?' · owes '+kes(c.balance):''}</option>`).join('')}</select>${custLine()}`:''}
  ${S.method=='cash'?`<div class="g"><input id="given" type="number" inputmode="numeric" placeholder="Customer gave (optional)" value="${S.given||''}" oninput="S.given=this.value;$('#chg').innerHTML=changeText()"><div class="card" id="chg" style="padding:10px 12px">${changeText()}</div></div>`:''}
  <button class="p" style="width:100%" onclick="checkout()">Sell · ${kes(t)}</button>`}
 function changeText(){const g=+S.given,t=total();if(!g)return'<small>Change</small>';
@@ -294,7 +296,10 @@ async function checkout(){
  const over=items.filter(({p,q})=>q>p.stock_qty);if(over.length&&!confirm('Not enough stock: '+over.map(({p})=>p.name+' ('+p.stock_qty+' left)').join(', ')+'. Sell anyway?'))return;
  const t=total();let paid=t,code=null;
  if(S.method=='debt'){if(!S.cust)return alert('Choose a customer');
-  const a=prompt('Amount paid now (0 if none)','0');if(a===null)return;paid=Math.min(t,Math.max(0,+a||0))}
+  const a=prompt('Amount paid now (0 if none)','0');if(a===null)return;paid=Math.min(t,Math.max(0,+a||0));
+  const c=S.customers.find(x=>x.customer_id==S.cust),nb=r2(+(c&&c.balance||0)+t-paid);
+  if(c&&c.credit_limit!=null&&nb>+c.credit_limit){const msg=`This sale takes ${c.name} to ${kes(nb)}, over the credit limit of ${kes(c.credit_limit)}.`;
+   if(S.role!='owner')return alert(msg+' Ask the owner.');if(!confirm(msg+' Sell anyway?'))return}}
  if(S.method=='mpesa')code=(prompt('M-Pesa code (optional)')||'').toUpperCase()||null;
  const sid=crypto.randomUUID();
  const sale={id:sid,shop_id:S.shop.id,customer_id:S.method=='debt'?S.cust:null,total:t,paid,method:S.method,mpesa_code:code,created_by:S.uid,created_at:new Date().toISOString()};
@@ -367,14 +372,86 @@ async function saveRestock(id,btn){const q=+$('#rq').value,b=$('#rb').value,s=$(
  btn.disabled=true;
  const {error}=await sb.rpc('restock_product',{p_product:id,p_qty:q,p_buy:b===''?null:+b,p_sell:s===''?null:+s,p_expiry:x&&x.value||null});
  if(error){btn.disabled=false;return alert(error.message)}closeEdit();await load();saveCache();render();toast('✓ Delivery saved')}
-async function addCustomer(){const n=$('#cn').value.trim();if(!n)return alert('Enter a name');const ph=$('#cp').value.trim();if(ph&&S.customers.some(c=>c.phone===ph))return alert('A customer with this phone number already exists');
- const {error}=await sb.from('customers').insert({shop_id:S.shop.id,name:n,phone:$('#cp').value.trim()||null});
- if(error)return alert(error.message);await load();render()}
-async function payDebt(id){const c=S.customers.find(x=>x.customer_id==id);
- const a=+prompt(`${c.name} owes ${kes(c.balance)}. Amount paid:`);if(!a)return;
- const m=confirm('OK = M-Pesa, Cancel = Cash')?'mpesa':'cash';
- const {error}=await sb.from('debt_payments').insert({shop_id:S.shop.id,customer_id:id,amount:a,method:m});
- if(error)return alert(error.message);await load();render()}
+// ---------- Customers & debts ----------
+const activeCustomers=()=>S.customers.filter(c=>c.active!==false).sort((a,b)=>a.name.localeCompare(b.name));
+const ageDays=c=>c.oldest_unpaid_at&&+c.balance>0?Math.max(0,Math.floor((Date.now()-new Date(c.oldest_unpaid_at))/864e5)):0;
+function ageBadge(c){if(!(+c.balance>0))return'';const n=ageDays(c);
+ return`<span class="${n>30?'low':n>=7?'ex':''}">${n>30?'⚠ ':''}${n==0?'today':n==1?'1 day':n+' days'}</span>`}
+const overLimit=c=>c.credit_limit!=null&&+c.balance>+c.credit_limit;
+function custLine(){const c=S.customers.find(x=>x.customer_id==S.cust);if(!c)return'';
+ return`<p class="lb">${esc(c.name)} owes ${kes(c.balance)}${c.credit_limit!=null?` · limit ${kes(c.credit_limit)}`:''}${overLimit(c)?' · <span class="low">over limit</span>':''}</p>`}
+function debtList(){const q=(S.dq||'').toLowerCase().trim(),all=S.df=='all';
+ let L=(all?S.customers.filter(c=>c.active!==false||+c.balance>0):S.customers.filter(c=>+c.balance>0)).filter(c=>!q||[c.name,c.phone].join(' ').toLowerCase().includes(q));
+ L=all?L.sort((a,b)=>a.name.localeCompare(b.name)):L.sort((a,b)=>ageDays(b)-ageDays(a)||b.balance-a.balance);
+ if(!L.length)return q?'<p>No customers match.</p>':all?'<p>No customers yet.</p>':'<p>No debts. 🎉</p>';
+ return L.map(c=>`<div class="row tap" onclick="customerView('${c.customer_id}')"><div>${esc(c.name)}<small>${+c.balance>0?`${kes(c.balance)} · ${ageBadge(c)}`:(+c.balance<0?`credit ${kes(-c.balance)}`:'owes nothing')}${c.credit_limit!=null?` · limit ${kes(c.credit_limit)}`:''}${overLimit(c)?' · <span class="low">over limit</span>':''}${c.phone?' · '+esc(c.phone):''}</small></div>
+  <div onclick="event.stopPropagation()">${+c.balance>0?`<button class="s" onclick="payDebt('${c.customer_id}')">Paid</button>`:''} ${c.phone&&+c.balance>0?`<a href="${esc(wa(c))}" target="_blank" rel="noopener"><button class="s">Remind</button></a>`:''}</div></div>`).join('')}
+// New / edit customer (also used from the Sell screen)
+function customerForm(id,cb){const c=id?S.customers.find(x=>x.customer_id==id):null;S.cfcb=cb||null;closeEdit();
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>${c?'Edit customer':'New customer'}</h3>
+ <input id="cfn" placeholder="Name" value="${esc(c?c.name:'')}"><input id="cfp" type="tel" placeholder="Phone e.g. 0712345678" value="${esc(c&&c.phone||'')}">
+ ${S.role=='owner'?`<label class="lb">Credit limit (optional): the most this customer may owe</label><input id="cfl" type="number" inputmode="numeric" placeholder="No limit" value="${c&&c.credit_limit!=null?c.credit_limit:''}">`:''}
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="saveCustomer(${c?`'${c.customer_id}'`:'null'},this)">Save</button></div></div></div>`);
+ setTimeout(()=>$('#cfn')&&$('#cfn').focus(),50)}
+async function saveCustomer(id,btn){const n=$('#cfn').value.trim(),ph=$('#cfp').value.trim();if(!n)return alert('Enter a name');
+ const dg=ph.replace(/\D/g,'');if(ph&&!/^(0|254)?[17]\d{8}$/.test(dg)&&!confirm('This does not look like a Kenyan mobile number. Save anyway?'))return;
+ if(ph&&S.customers.some(c=>c.customer_id!=id&&c.active!==false&&c.phone&&c.phone.replace(/\D/g,'').slice(-9)==dg.slice(-9)))return alert('A customer with this phone number already exists');
+ const row={name:n.slice(0,120),phone:ph||null};const l=$('#cfl');if(l)row.credit_limit=l.value===''?null:Math.max(0,+l.value);
+ btn.disabled=true;let newId=id;
+ if(id){const {error}=await sb.from('customers').update(row).eq('id',id);if(error){btn.disabled=false;return alert(error.message)}}
+ else{const {data,error}=await sb.from('customers').insert({...row,shop_id:S.shop.id}).select('id').single();if(error){btn.disabled=false;return alert(error.message)}newId=data.id}
+ const cb=S.cfcb;S.cfcb=null;closeEdit();await load();saveCache();if(cb)cb(newId);else render()}
+async function removeCustomer(id){const c=S.customers.find(x=>x.customer_id==id);
+ if(+c.balance>0)return alert(`${c.name} still owes ${kes(c.balance)}. Record the payment first.`);
+ if(!confirm(`Remove ${c.name} from your customer list? Their history is kept.`))return;
+ const {error}=await sb.from('customers').update({active:false}).eq('id',id);if(error)return alert(error.message);closeEdit();await load();saveCache();render()}
+// Record a payment
+function payDebt(id){const c=S.customers.find(x=>x.customer_id==id);S.pm='cash';closeEdit();
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>Payment · ${esc(c.name)}</h3><p class="lb">Owes ${kes(c.balance)}</p>
+ <label class="lb">Amount received</label><div class="ib"><input id="pa" type="number" inputmode="numeric" step="any" oninput="pdCalc('${id}')">${+c.balance>0?`<button class="s" onclick="$('#pa').value=${+c.balance};pdCalc('${id}')">All ${kes(c.balance)}</button>`:''}</div>
+ <div class="m"><button id="pmc" class="on" onclick="pdMethod('cash')">Cash</button><button id="pmm" onclick="pdMethod('mpesa')">M-Pesa</button></div>
+ <input id="pcode" placeholder="M-Pesa code (optional)" style="display:none;text-transform:uppercase"><p class="lb" id="pd"></p>
+ <div class="m"><button onclick="closeEdit()">Cancel</button><button class="p" onclick="savePayment('${id}',this)">Save payment</button></div></div></div>`);
+ setTimeout(()=>$('#pa')&&$('#pa').focus(),50)}
+function pdMethod(m){S.pm=m;$('#pmc').className=m=='cash'?'on':'';$('#pmm').className=m=='mpesa'?'on':'';$('#pcode').style.display=m=='mpesa'?'':'none'}
+function pdCalc(id){const c=S.customers.find(x=>x.customer_id==id),a=+$('#pa').value,nb=r2(c.balance-a);
+ $('#pd').innerHTML=a>0?(nb>0?`New balance: <b>${kes(nb)}</b>`:nb==0?'Fully paid ✔':`Paid in full, with <b>${kes(-nb)}</b> extra kept as credit`):''}
+async function savePayment(id,btn){const c=S.customers.find(x=>x.customer_id==id),a=+$('#pa').value;if(!(a>0))return alert('Enter the amount received');
+ const code=S.pm=='mpesa'?($('#pcode').value.trim().toUpperCase()||null):null;btn.disabled=true;
+ const {error}=await sb.from('debt_payments').insert({shop_id:S.shop.id,customer_id:id,amount:a,method:S.pm,mpesa_code:code});
+ if(error){btn.disabled=false;return alert(error.message)}
+ const nb=r2(c.balance-a),when=new Date().toLocaleString('en-KE',{timeZone:'Africa/Nairobi',dateStyle:'medium',timeStyle:'short'});
+ const txt=`${S.shop.name}\nPayment received: ${kes(a)} (${S.pm=='mpesa'?'M-Pesa'+(code?' '+code:''):'Cash'})\nFrom: ${c.name}\n${when}\n${nb>0?'Balance remaining: '+kes(nb):nb<0?'Credit: '+kes(-nb):'Fully paid. Thank you!'}\nAsante!`;
+ closeEdit();await load();saveCache();render();
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet"><h3>Payment saved ✔</h3>
+ <div class="rc" data-nt style="white-space:pre-line">${esc(txt)}</div>
+ <div class="m"><a style="flex:1" href="https://wa.me/${waNum(c.phone)}?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener"><button style="width:100%">Send on WhatsApp</button></a><button class="p" onclick="closeEdit()">Close</button></div></div></div>`)}
+const waNum=ph=>{let p=(ph||'').replace(/\D/g,'');if(p.startsWith('0'))p='254'+p.slice(1);else if(/^[17]\d{8}$/.test(p))p='254'+p;return p};
+// Customer page: history, statement, actions
+async function customerView(id){const c=S.customers.find(x=>x.customer_id==id);if(!c)return;
+ const [s,p]=await Promise.all([
+  sb.from('sales').select('id,created_at,total,paid,method,mpesa_code,voided,sale_items(name,qty,unit_price)').eq('customer_id',id).order('created_at',{ascending:false}).limit(200),
+  sb.from('debt_payments').select('id,created_at,amount,method,mpesa_code').eq('customer_id',id).order('created_at',{ascending:false}).limit(200)]);
+ if(s.error||p.error)return alert((s.error||p.error).message);
+ const H=[...(s.data||[]).map(x=>({t:x.created_at,k:'sale',x})),...(p.data||[]).map(x=>({t:x.created_at,k:'pay',x}))].sort((a,b)=>a.t<b.t?-1:1);
+ let bal=0;H.forEach(h=>{if(h.k=='sale'){if(!h.x.voided)bal+= +h.x.total- +h.x.paid}else bal-= +h.x.amount;h.bal=r2(bal)});
+ S.cv={c,H};closeEdit();const d=t=>new Date(t).toLocaleDateString('en-KE',{timeZone:'Africa/Nairobi',day:'numeric',month:'short'});
+ const items=x=>(x.sale_items||[]).map(i=>`${i.name} ×${fq(i.qty)}`).join(', ')||'Sale';
+ document.body.insertAdjacentHTML('beforeend',`<div class="modal" onclick="if(event.target==this)closeEdit()"><div class="sheet" style="max-height:96vh">
+ <h3>${esc(c.name)}</h3><p class="lb">${c.phone?`<a href="tel:${esc(c.phone)}">${esc(c.phone)}</a> · `:''}customer since ${d(c.created_at)}</p>
+ <div class="g"><div class="card">${+c.balance<0?'Credit':'Owes'}<b class="${overLimit(c)?'low':''}">${kes(Math.abs(c.balance))}</b><small>${+c.balance>0?'oldest unpaid: '+ageBadge(c):'all paid'}</small></div>
+ <div class="card">Credit limit<b>${c.credit_limit!=null?kes(c.credit_limit):'None'}</b><small>${c.last_payment_at?'last paid '+d(c.last_payment_at):'no payments yet'}</small></div></div>
+ <div class="tools">${+c.balance>0?`<button class="p" onclick="payDebt('${id}')">💵 Record payment</button>`:''}<a href="https://wa.me/${waNum(c.phone)}?text=${encodeURIComponent(statementText())}" target="_blank" rel="noopener"><button class="s">📤 Statement</button></a>
+ ${c.phone&&+c.balance>0&&S.settings&&S.settings.sms_enabled?`<button class="s" onclick="sendSms('${id}',this)">💬 SMS</button>`:''}<button class="s" onclick="customerForm('${id}')">✏️ Edit</button>${S.role=='owner'?`<button class="s" onclick="removeCustomer('${id}')">Remove</button>`:''}</div>
+ <h3>History</h3>${H.length?[...H].reverse().map(h=>h.k=='sale'?`<div class="row"><div>${d(h.t)} · ${esc(items(h.x))}<small>${h.x.voided?'<s>':''}Bought ${kes(h.x.total)}${+h.x.paid?` · paid ${kes(h.x.paid)}`:''}${h.x.voided?'</s> · VOIDED':''}</small></div><small>bal ${kes(h.bal)}</small></div>`
+  :`<div class="row"><div>${d(h.t)} · Paid <b>${kes(h.x.amount)}</b><small>${h.x.method=='mpesa'?'M-Pesa'+(h.x.mpesa_code?' '+esc(h.x.mpesa_code):''):'Cash'}</small></div><small>bal ${kes(h.bal)}</small></div>`).join(''):'<p>No history yet.</p>'}
+ <p><button onclick="closeEdit()" style="width:100%">Close</button></p></div></div>`)}
+function statementText(){const {c,H}=S.cv,d=t=>new Date(t).toLocaleDateString('en-KE',{timeZone:'Africa/Nairobi',day:'numeric',month:'short'});
+ const L=[`*${S.shop.name}*`,`Statement for ${c.name}`,''];const recent=H.filter(h=>!(h.k=='sale'&&h.x.voided)).slice(-15);
+ if(H.length>recent.length)L.push('…earlier entries not shown');
+ recent.forEach(h=>L.push(h.k=='sale'?`${d(h.t)}: ${(h.x.sale_items||[]).map(i=>`${i.name} x${fq(i.qty)}`).join(', ')||'Goods'} = ${kes(h.x.total)}${+h.x.paid?` (paid ${kes(h.x.paid)})`:''}`
+  :`${d(h.t)}: Paid ${kes(h.x.amount)}${h.x.method=='mpesa'?' M-Pesa':''}`));
+ L.push('',+c.balance>0?`*Balance: ${kes(c.balance)}*`:+c.balance<0?`Credit: ${kes(-c.balance)}`:'Balance: KES 0. Thank you!','Asante!');return L.join('\n')}
 function wa(c){let p=(c.phone||'').replace(/\D/g,'');if(p.startsWith('0'))p='254'+p.slice(1);
  return`https://wa.me/${p}?text=`+encodeURIComponent(`Hello ${c.name}, a friendly reminder that your balance at ${S.shop.name} is ${kes(c.balance)}. Thank you!`)}
 
@@ -540,8 +617,9 @@ async function exportData(kind,btn){
    download(file,[['Name','Variant','Category','SKU','Unit','Buy price','Sell price','In stock','Reorder at','Expiry','Active'],
     ...p.map(x=>[x.name,x.variant,x.category,x.sku,x.unit,x.buy_price,x.sell_price,x.stock_qty,x.low_stock_at,x.expiry,x.active?'yes':'no'])]);
   }else{
-   const c=await fetchAll(()=>sb.from('customer_balances').select('name,phone,balance').eq('shop_id',sid).order('name'));
-   download(file,[['Name','Phone','Balance owed'],...c.map(x=>[x.name,x.phone,x.balance])]);
+   const c=await fetchAll(()=>sb.from('customer_balances').select('name,phone,balance,credit_limit,oldest_unpaid_at,last_payment_at,active').eq('shop_id',sid).order('name'));
+   const dd=t=>t?new Date(t).toLocaleDateString('en-CA',{timeZone:'Africa/Nairobi'}):'';
+   download(file,[['Name','Phone','Balance owed','Credit limit','Owing since','Last payment','Active'],...c.map(x=>[x.name,x.phone,x.balance,x.credit_limit,+x.balance>0?dd(x.oldest_unpaid_at):'',dd(x.last_payment_at),x.active===false?'no':'yes'])]);
   }
  }catch(e){alert('Download failed: '+(e.message||e))}
  finally{btn.disabled=false;btn.textContent=label}}
@@ -792,7 +870,7 @@ function sellScanned(code){const p=S.products.find(x=>x.sku&&x.sku.toLowerCase()
  alert('No product has barcode '+code+'. Ask the owner to add it in Stock.')}
 
 // Actions that change records other than sales need the internet; sales work offline.
-['addProduct','restock','saveRestock','showImport','runImport','stkApply','addCustomer','payDebt','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
+['addProduct','restock','saveRestock','showImport','runImport','stkApply','saveCustomer','savePayment','customerView','removeCustomer','saveEdit','removeProduct','invite','rmStaff','voidSale','createShop','editKra','addBranch','sendSms','payStk','exportData','loadAdmin','showPlans']
  .forEach(n=>{const f=window[n];if(typeof f!='function')return;window[n]=function(...a){if(!navigator.onLine)return alert('You are offline. This needs internet. Selling still works offline.');return f.apply(this,a)}});
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 
